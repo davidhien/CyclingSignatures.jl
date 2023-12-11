@@ -17,7 +17,7 @@ g11 = figCombined[1,1] = GridLayout()
 g12 = figCombined[1,2] = GridLayout()
 g21 = figCombined[2,1] = GridLayout()
 g22 = figCombined[2,2]
-plotRanksWithLegend(dwResults, lorenz_r; gl=g11)
+plotRanksWithLegend(lorenzResults, lorenz_r; gl=g11)
 plotSignaturesWithLegend(lorenzResults, 1, lorenz_r; gl=g12)
 plotSignaturesWithLegend(lorenzResults, 2, lorenz_r; gl=g21, legend_kwargs=(;nbanks=5))
 plotSubspaceInclusion(lorenzResults, 1, 2, lorenz_r; gp=g22, axis_kwargs=(;limits=(.5,3.5,.8,2.2)))

@@ -43,7 +43,7 @@ include("inclusion-map.jl")
 include("trajectory-space.jl")
 include("lin-alg-util.jl")
 include("sphere-bundle.jl")
-include("Trajectory.jl")
+include("trajectory.jl")
 include("distance-matrix-persistence.jl")
 include("subsegment-experiments.jl")
 
