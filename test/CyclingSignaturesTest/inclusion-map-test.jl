@@ -73,8 +73,6 @@ end
     @test isapprox(nextMaxSwitchLambda(p1,p2),.2)
     @test isapprox(nextMaxSwitchLambda(-p1,-p2),.2)
 
-    # TODO: more test cases with multiple entries and multiple phenomena
-    # TODO: document phenomena, make sure they are tested, also in combination
 end
 
 
@@ -209,8 +207,3 @@ end
         @test testIncludeCycleCircleDataSB2()
     end
 end
-
-# TODO:
-# - InclusionHelpers
-#   - test constructors, check that everything is sorted. Maybe ensure this in inner constructors
-# - Test shortest path heuristic

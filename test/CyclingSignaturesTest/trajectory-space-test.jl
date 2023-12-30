@@ -45,7 +45,6 @@ end
 ###
 
 function longCircleTimeSeries()
-    # TODO: only one helper method for this
     a = 0:.05:20*pi
     return [cos.(a)'; sin.(a)']
 end
@@ -57,18 +56,12 @@ end
         boxsize = 0.1
         ts = trajectoryToTrajectorySpace(Y, boxsize)
         t_ranges = map(v->1:v,50:50:250)
-        #ripserer_pds = map(t_ranges) do range
-        #    evaluateCycling(Val(:Ripserer), ts, range, .1)
-        #end
         dm_pds = map(t_ranges) do range
             evaluateCycling(Val(:DistanceMatrix), ts, range, .1)
         end
         expected_ranks = [0;0;1;1;1]
-        #ripserer_ranks = map(length, ripserer_pds)
         dm_ranks = map(length, dm_pds)
-        #@test expected_ranks == ripserer_ranks
         @test expected_ranks == dm_ranks
     end
-    # TODO: test another simple but nontrivial example like torus, double circle, ...
 end
 

@@ -47,7 +47,3 @@ function Base.show(io::IO, S::Simplex)
 
     return print(io, s)
 end
-
-# TODO:
-# - simplicialcomplex/cubicalcomplex
-# - methods: subdivide, union, product, relative homology

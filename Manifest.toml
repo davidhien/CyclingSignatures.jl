@@ -2,7 +2,7 @@
 
 julia_version = "1.9.1"
 manifest_format = "2.0"
-project_hash = "b6bd5dfaa5bf20b7989c33928d9e7714988461b7"
+project_hash = "3ba39109612552c82585b98507ecc2d812eb96c5"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "5d2e21d7b0d8c22f67483ef95ebdc39c0e6b6003"
@@ -2474,14 +2474,6 @@ deps = ["Dates", "FileIO", "ImageCore", "IndirectArrays", "OffsetArrays", "REPL"
 git-tree-sha1 = "2da10356e31327c7096832eb9cd86307a50b1eb6"
 uuid = "45858cf5-a6b0-47a3-bbea-62219f50df47"
 version = "0.1.3"
-
-[[deps.SmithNormalForm]]
-deps = ["LinearAlgebra", "SparseArrays"]
-git-tree-sha1 = "71614fd4896c5d72a25d35bee9ea39352d0be81d"
-repo-rev = "master"
-repo-url = "https://github.com/wildart/SmithNormalForm.jl.git"
-uuid = "ba71f38f-f508-439b-ac77-437f86a20aa1"
-version = "0.3.2"
 
 [[deps.SnoopPrecompile]]
 deps = ["Preferences"]
