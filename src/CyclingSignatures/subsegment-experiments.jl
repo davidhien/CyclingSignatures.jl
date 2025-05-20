@@ -38,6 +38,13 @@ function RandomSubsegmentExperiment(trajectorySpace, segmentsParam, fltThreshold
     return RandomSubsegmentExperiment(trajectorySpace, segmentsParam, fltThreshold, segments)
 end
 
+function sameSegmentExperiment(trajectorySpace, ex::RandomSubsegmentExperiment, fltThreshold=nothing)
+    if fltThreshold === nothing
+        fltThreshold = getBoxSpace(trajectorySpace).boxsize
+    end
+    return RandomSubsegmentExperiment(trajectorySpace, ex.sampleParameter, fltThreshold, ex.segmentRanges)
+end
+
 function Base.show(io::IO, ex::RandomSubsegmentExperiment)
     print(io, "RandomSubsegmentExperiment: ")
     print(io, "fltThreshold=$(ex.fltThreshold), ")
@@ -183,7 +190,7 @@ function subspaceDistribution(res, d, r=Inf)
     end
 
     rank_d_subspaces = map(res.cyclingMatrices[rank_d_ind]) do mat
-        return Int.(subspaceNormalForm(mat[:,1:d]))
+        return Int.(colspace_normal_form(mat[:,1:d]))
     end
     
     return isempty(rank_d_ind) ? Dict{Vector{Int},Int}() : countmap(rank_d_subspaces,alg=:dict)
@@ -211,7 +218,7 @@ function inclusionVectors(res::SubsegmentResultReduced, signatures)
     map(res.cyclingMatrices) do mat
         map(signatures) do v
             A = [mat v]
-            basicMatrixReduction!(A)
+            basic_reduction!(A)
             return all(==(0), A[:,end])
         end
     end
@@ -224,7 +231,7 @@ function subspaceInclusionDistribution(res::SubsegmentResultReduced, signatures,
     inclusionVectors = map(subspaces) do mat
         map(signatures) do sig
             A = [mat sig]
-            basicMatrixReduction!(A)
+            basic_reduction!(A)
             return all(==(0), A[:,d+1:end])
         end
     end
@@ -263,7 +270,7 @@ end
 
 function isSubspace(V, W)
     A = [V W]
-    basicMatrixReduction!(A)
+    basic_reduction!(A)
     return all(==(0), A[:,size(V,2)+1:end])
 end
 
@@ -272,6 +279,25 @@ function getSignatureRanges(res::SubsegmentResultReduced, sig, r)
     ind1 = findall(v -> count(v .<= r) == n, res.birthVectors)
     ind2 = findall(i -> res.cyclingMatrices[i][:,1:n] == sig, ind1)
     return res.experiment.segmentRanges[ind1[ind2]]
+end
+
+function getSubspaceRanges(res::SubsegmentResultReduced, sig, r)
+    _,n = size(sig)
+    ind1 = findall(v -> count(v .<= r) == n, res.birthVectors)
+    ind2 = findall(i -> colspace_normal_form(res.cyclingMatrices[i][:,1:n]) == sig, ind1)
+    return res.experiment.segmentRanges[ind1[ind2]]
+end
+
+function getSubspaceRangesAndBars(res::SubsegmentResultReduced, sig)
+    _,n = size(sig)
+    ind = findall(M -> size(M,2)>=n && colspace_normal_form(M[:,1:n]) == sig, res.cyclingMatrices)
+    ranges = res.experiment.segmentRanges[ind]
+    bars = map(ind) do i
+        b = res.birthVectors[i][n]
+        d = length(res.birthVectors[i])==n ? Inf : res.birthVectors[i][n+1]
+        return (b,d)
+    end
+    return ranges,bars
 end
 
 struct SubsegmentResultSummary
@@ -299,3 +325,213 @@ end
 # TODO: do not use ranges for indexing QuantizedTrajectories but rather some sort of interval description
 # TODO: for future make the following changes
 # an experiment should be able to deal with a variety of parameters.
+
+###
+### Code for radius dependent evaluation
+###
+
+function intervalsToFrequencyFunction(ints)
+    births = map(t->t[1], ints)
+    deaths = filter(isfinite, map(t->t[2],ints))
+    xs_unsorted = [births;deaths]
+    p = sortperm(xs_unsorted)
+    sign_vec = [ones(Int,length(births));-ones(Int,length(deaths)) ]
+    xs_sorted = xs_unsorted[p]
+    ys_sorted = cumsum(sign_vec[p])
+
+    # take care that xs is unique, for this, need last occurence for each x
+    i_unique = unique(i->xs_sorted[i] , Iterators.reverse(eachindex(xs_sorted)))
+    sort!(i_unique)
+    return xs_sorted[i_unique], ys_sorted[i_unique]
+end
+
+"""
+    function evaluateStepFct(x, xs, ys)
+
+Evaluates the expression ∑ ys[i] * 1_{ [xs[i],xs[i+1]) }(x)
+"""
+function evaluateStepFct(x, xs, ys)
+    if length(ys) == 0 || x <= xs[1]
+        return 0
+    end
+    i = last(searchsorted(xs, x))
+    return ys[i]
+end
+
+function rankIntervals(res, d)
+    ind = findall(v->length(v) >= d, res.birthVectors)
+    if d == 0
+        return map(bv -> length(bv) == 0 ? (0,Inf) : (0,bv[1]),res.birthVectors[ind])
+    else
+        return map(bv -> length(bv) == d ? (bv[d],Inf) : (bv[d],bv[d+1]),res.birthVectors[ind])
+    end
+end
+
+function rankIntervalStepFct(res, d)
+    ints = rankIntervals(res, d)
+    return intervalsToFrequencyFunction(ints)
+end
+
+function rankHeatmapData(results,d, y_rng)
+    rk_fcts = rankIntervalStepFct.(results,d)
+
+    #rk_fcts_all_max = maximum(rk_fcts) do fct
+    #    maximum(fct[2],init=0)
+    #end
+
+    M = map(CartesianIndices((1:length(rk_fcts),1:length(y_rng)))) do t
+        return evaluateStepFct(y_rng[t[2]], rk_fcts[t[1]]...)
+    end
+end
+
+# for all d-dimensional subspaces, find all intervals where the subspace is taken
+function subspaceIntervalDict(res,d)
+    ind = findall(v->length(v) >= d, res.birthVectors)
+    intervals = map(bv -> length(bv) == d ? (bv[d],Inf) : (bv[d],bv[d+1]),res.birthVectors[ind])
+    sigMats = map(M-> M[:,1:d],res.cyclingMatrices[ind])
+    d = Dict{Matrix{Int},Vector{Tuple{Float64,Float64}}}()
+    for (int,M) in zip(intervals,sigMats)
+        M_nf = Int.(colspace_normal_form(M))
+        if !haskey(d,M_nf)
+            d[M_nf] = [int]
+        else
+            push!(d[M_nf],int)
+        end
+    end
+    return d
+end
+
+function subspaceFrequencyRadiusFct(res,d)
+    d = subspaceIntervalDict(res,d)
+    k = collect(keys(d))
+    fs = map(ints -> intervalsToFrequencyFunction(ints), values(d))
+    return k, fs
+end
+
+function stepFunctionIntegal(xs, ys)
+    if length(xs) != length(ys)+1
+        error("Invalid step function")
+    end
+    return sum(i-> ys[i]*(xs[i+1]-xs[i]), 1:length(ys))
+end
+
+
+function signatureHeatmapMatrix(results, sig, y_rng)
+    si_dicts = subspaceIntervalDict.(results,size(sig,2))
+    sig_intervals = map(d->haskey(d, sig) ? getindex(d, sig) : Float64[],si_dicts)
+    cs_f_fcts = intervalsToFrequencyFunction.(sig_intervals)
+    M = map(CartesianIndices((1:length(cs_f_fcts),1:length(y_rng)))) do t
+        return evaluateStepFct(y_rng[t[2]], cs_f_fcts[t[1]]...)
+    end
+    return M
+end
+
+function allSignatureHeatmapMatrices(results, k, y_rng)
+    si_dicts = subspaceIntervalDict.(results,k)
+    keys_vec = collect(union(keys.(si_dicts)...))
+    mats = map(keys_vec) do sig
+        sig_intervals = map(d->haskey(d, sig) ? getindex(d, sig) : Tuple{Float64,Float64}[],si_dicts)
+        cs_f_fcts = intervalsToFrequencyFunction.(sig_intervals)
+        M = map(CartesianIndices((1:length(cs_f_fcts),1:length(y_rng)))) do t
+            return evaluateStepFct(y_rng[t[2]], cs_f_fcts[t[1]]...)
+        end
+        return M
+    end
+    p = sortperm(mats, by=sum, rev=true)
+    return keys_vec[p], mats[p]
+end
+
+function signaturesTotalPersistence(results, k, y_max; p=1)
+    si_dicts = subspaceIntervalDict.(results,k)
+    keys_vec = collect(union(keys.(si_dicts)...))
+
+    tp = map(keys_vec) do sig
+        int_vecs = map(d->haskey(d, sig) ? getindex(d, sig) : Tuple{Float64,Float64}[],si_dicts)
+        all_intervals = vcat(int_vecs...)
+        all_lengths = map(t->min(t[2],y_max)-t[1],all_intervals)
+        return norm(all_lengths, p)
+    end
+    p = sortperm(tp, rev=true)
+    return keys_vec[p], tp[p]
+end
+
+function allSignatureRadiusFunctions(results, k; r_max_for_sorting=nothing, filter_shorter_as=0, max_n_sig=nothing)
+    si_dicts = subspaceIntervalDict.(results,k)
+    keys_vec = collect(union(keys.(si_dicts)...))
+    if r_max_for_sorting !== nothing
+        keys_vec, _ = signaturesTotalPersistence(results, k, r_max_for_sorting)
+    else
+        keys_vec, _ = signaturesTotalIntervalCount(results, k)
+    end
+    if max_n_sig !== nothing
+        keys_vec = keys_vec[1:min(length(keys_vec),max_n_sig)]
+    end
+
+    r_fcts = map(keys_vec) do sig
+        int_vecs = map(d->haskey(d, sig) ? getindex(d, sig) : Tuple{Float64,Float64}[],si_dicts)
+        all_intervals = vcat(int_vecs...)
+        filter!(i-> i[2]-i[1]>= filter_shorter_as, all_intervals)
+        return intervalsToFrequencyFunction(all_intervals)
+    end
+    return keys_vec, r_fcts
+end
+
+
+
+function signaturesLengthToTotalPersistence(results, k, r_max)
+    si_dicts = subspaceIntervalDict.(results,k)
+    keys_vec = collect(union(keys.(si_dicts)...))
+    l_fcts = map(keys_vec) do sig
+        int_vecs = map(d->haskey(d, sig) ? getindex(d, sig) : Tuple{Float64,Float64}[],si_dicts)
+        # for every Vector{Tuple{Float64,Float64}} that represents a collection of intervals, calculate total persistence
+        return map(int_vecs) do int_vec
+            return sum(int_vec, init=0) do int
+                return min(int[2], r_max) - int[1]
+            end
+        end
+    end
+    p = sortperm(l_fcts, rev=true, by=sum)
+    return keys_vec[p], l_fcts[p]
+end
+
+function signaturesLengthToIntervalCount(results, k; sort_by_tp_with_rmax=nothing, filter_shorter_than=0, filter_shorter_r_max=Inf)
+    si_dicts = subspaceIntervalDict.(results,k)
+    keys_vec = collect(union(keys.(si_dicts)...))
+    l_fcts = map(keys_vec) do sig
+        int_vecs = map(d->haskey(d, sig) ? getindex(d, sig) : Tuple{Float64,Float64}[],si_dicts)
+        # for every Vector{Tuple{Float64,Float64}} that represents a collection of intervals, calculate total persistence
+        int_vecs = map(int_vecs) do v
+            filter(t-> min(t[2],filter_shorter_r_max)-t[1]>= filter_shorter_than, v)
+        end
+        return map(length,int_vecs)
+    end
+    p = sortperm(l_fcts, rev=true, by=sum)
+
+    if !isnothing(sort_by_tp_with_rmax)
+        l_fcts_sort_vec = map(keys_vec) do sig
+            int_vecs = map(d->haskey(d, sig) ? getindex(d, sig) : Tuple{Float64,Float64}[],si_dicts)
+            # for every Vector{Tuple{Float64,Float64}} that represents a collection of intervals, calculate total persistence
+            return sum(int_vecs, init=0) do int_vec
+                return sum(int_vec, init=0) do int
+                    return min(int[2], sort_by_tp_with_rmax) - int[1]
+                end
+            end
+        end    
+        p = sortperm(l_fcts_sort_vec, rev=true, by=sum)
+    end
+    return keys_vec[p], l_fcts[p]
+end
+
+function signaturesTotalIntervalCount(results, k; filter_shorter_than=0, filter_shorter_r_max=Inf)
+    keys_vec, l_fcts = signaturesLengthToIntervalCount(results, k; filter_shorter_than=filter_shorter_than, filter_shorter_r_max=filter_shorter_r_max)
+    total_number = sum.(l_fcts, init=0)
+    return keys_vec, total_number
+end
+
+function cyclingSpaceSegmentIndices(res, sig)
+    d = size(sig,2)
+    ind = findall(v->length(v) >= d, res.birthVectors)
+
+    filter!(i-> colspace_normal_form(res.cyclingMatrices[i][:,1:d] ) == sig, ind)
+    return ind
+end

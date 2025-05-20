@@ -11,7 +11,7 @@ import Base: hash, ==
 using LinearAlgebra
 using SparseArrays
 using DataStructures
-using LightGraphs, MetaGraphs
+using Graphs, MetaGraphs
 
 include("ChainComplex.jl")
 include("AbstractCell.jl")

@@ -110,8 +110,8 @@ end
 ### inclusion graph plots
 
 function subspaceInclusionPoints(m,n)
-    xs1 = (collect(Float64,1:n))
-    xs2 = collect(1:m)
+    xs1 = collect(Float64,1:n)
+    xs2 = collect(Float64,1:m)
     if m>n
         xs1 .+= (m-n)/2
     elseif n>m

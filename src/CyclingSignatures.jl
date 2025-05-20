@@ -1,5 +1,8 @@
 module CyclingSignatures
 
+# FF.jl
+export is_prime, FF
+
 # InclusionMap.jl
 export InclusionHelper, SBInclusionHelper
 
@@ -10,7 +13,7 @@ export TrajectorySpace, trajectoryToTrajectorySpace, trajectoryToTrajectorySpace
 export maxInclusionThreshold, evaluateCycling, trajectoryBarcode
 
 # LinAlg.jl
-export basicMatrixReduction, subspaceNormalForm
+export basic_reduction!, colspace_normal_form
 
 # SphereBundle.jl
 export SBDistance
@@ -34,18 +37,23 @@ using Distances: PreMetric, Metric, pairwise, chebyshev
 using PersistenceDiagrams
 using LinearAlgebra
 using StatsBase: countmap
-using ATTools
 using Graphs, SimpleWeightedGraphs
 using ProgressBars
+using DataInterpolations
+using DataStructures: IntDisjointSets, find_root!
+
+include("H1Cohomology/ATTools.jl")
+using .ATTools
 
 include("ff.jl")
-include("inclusion-map.jl")
-include("trajectory-space.jl")
+include("CyclingSignatures/inclusion-map.jl")
+include("CyclingSignatures/trajectory-space.jl")
 include("lin-alg-util.jl")
-include("sphere-bundle.jl")
-include("trajectory.jl")
+include("CyclingSignatures/sphere-bundle.jl")
+include("CyclingSignatures/trajectory.jl")
 include("distance-matrix-persistence.jl")
-include("subsegment-experiments.jl")
+include("CyclingSignatures/subsegment-experiments.jl")
+include("CyclingSignatures/interpolate-to-distance.jl")
 
 DEFAULT_FIELD = FF{2}
  

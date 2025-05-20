@@ -142,6 +142,58 @@ function resampleToDistance(ds, dt::Number, ic, ec, r, d; pp=identity, norm_sb=n
     return X
 end
 
+function sample_desol_to_distance_sb(sol, vf, sb_distance, r, dt; max_depth=1000, t0=sol.t[1], t_max=sol.t[end])
+    n_t = ceil(Int, (t_max-t0)/dt)
+    v = Vector{Matrix{Float64}}(undef, n_t)
+
+    for i = 1:n_t
+        v[i] = sample_desol_to_distance_sb(sol, vf, dt, t0+i*dt, sb_distance, r; max_depth=max_depth)
+    end
+    v[end] = [sol(sol.t[end])[:];vf(sol(sol.t[end])[:])][:,:]
+    new_lengths = map(m->size(m,2),v)
+    t_vec = zeros(Int,length(new_lengths)+1)
+    t_vec[1] = 1
+    for i = 2:length(t_vec)
+        t_vec[i] = t_vec[i-1] + new_lengths[i-1]
+    end
+    Y_new = reduce(hcat,v)
+    return Y_new, t_vec
+end
+
+function sample_desol_to_distance_sb(sol, vf, dt, t0, dist, r; max_depth=10000)
+    x0 = sol(t0)[:]
+    v0 = vf(x0)
+    X = [x0;v0][:,:]
+
+    ec = [sol(t0+dt)[:];vf(sol(t0+dt)[:])]
+
+    t_end = t0+dt
+    t_cur = t0
+    v = 2
+
+    ct = 0
+    while !(dist(X[:,end], ec) <= r) && (ct += 1) < 100*max_depth
+        X = [X ec]
+        dt_cur = t_end - t_cur 
+        v = 2
+        while !(dist(X[:,end], X[:,end-1]) <= r)
+            x_new = sol(t_cur + dt_cur/v)
+            v_new = vf(x_new)
+            X[:,end] = [x_new;v_new]
+            v *= 2
+            if v > max_depth
+                @warn "Went over max depth"
+                break
+            end
+        end
+        t_cur += dt_cur/dt_cur
+        ct += 1
+    end
+    return X
+end
+
+
+
 """
     function resampleToConsistent(ds, Y, r, dt)
 

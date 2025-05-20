@@ -61,6 +61,14 @@ function curveHypothesis(rt::ResampledTrajectory, d)
     end
 end
 
+function countCurveHypothesisViolations(rt::ResampledTrajectory, d, r)
+    i1 = eachcol(rt.trajectory)
+    i2 = Iterators.drop(eachcol(rt.trajectory),1)
+    return count(zip(i1,i2)) do t
+        d(t[1],t[2])>= r
+    end
+end
+
 abstract type AbstractBoxSpace end
 
 getInclusionHelper(bs::T) where {T<:AbstractBoxSpace} = getfield(bs, :inc_helper)
@@ -213,6 +221,10 @@ function curveHypothesis(ts::TrajectorySpace)
     return curveHypothesis(getTrajectory(ts), getMetric(ts))
 end
 
+function countCurveHypothesisViolations(ts::TrajectorySpace, r)
+    return countCurveHypothesisViolations(getTrajectory(ts), getMetric(ts), r)
+end
+
 """
 function maxInclusionThreshold(boxsize, sb_radius, C)
 
@@ -224,11 +236,11 @@ function maxInclusionThreshold(boxsize, sb_radius, C)
     return min(boxsize, C/sb_radius)
 end
 
-struct TrajectoryBar{T<:Integer}
+struct TrajectoryBar{T<:Integer,N}
     # helper struct with detailed type information for persistence bar
     birth::Float64
     death::Float64
-    simplex_list::Vector{Tuple{Int,Int}}
+    simplex_list::Vector{NTuple{N,Int}}
     coeff_list::Vector{T}
 end
 
@@ -253,15 +265,17 @@ end
 """
     function trajectoryBarcode(alg, trajPoints, metric, fltThreshold)
 
-Computes a barcode for the trajectory specified by trajPoints using the given metric. In addition, fltThreshold specifies how far the filtrations are evaluated.
+Computes a barcode for the trajectory specified by `trajPoints` using the given `metric`. 
+The parameter `fltThreshold` determines how far the filtrations are evaluated.
 
-More precisely:
-- alg specifies the algorithm, currently either :Ripserer or :DistanceMatrix
-- trajPoints, a matrix with columns being points
-- metric, a function with two arguments subject to the usual axioms,
-- fltThreshold, a number which specifies how far the filtrations are being evaluated.
+# Arguments
+- `alg`: Specifies the algorithm to use. Currently supports `:Ripserer` or `:DistanceMatrix`.
+- `trajPoints`: A matrix where each column represents a point on the trajectory.
+- `metric`: A function of two arguments that satisfies the usual metric axioms.
+- `fltThreshold`: A number indicating the filtration threshold.
 
-NOTE: the returned persistence diagram is not guaranteed to be a persistence diagram for the given curve.
+# Note
+The returned persistence diagram is not guaranteed to be a true persistence diagram for the given curve.
 """
 trajectoryBarcode(alg::Any, trajPoints, metric, fltThreshold, field = DEFAULT_FIELD) = error("Not implemented for specified alg.")
 
@@ -290,12 +304,14 @@ end
 int is required to have the keyword inclusion_generator
 """
 function removeDependentIntervals(int)
+    int = filter(v -> any(!=(0), v.inclusion_representative) , int)
     if isempty(int)
         return int
     end
+    int = filter(v -> any(!=(0), v.inclusion_representative) , int)
     M = reduce(hcat, map(v-> v.inclusion_representative, int))
-    basicMatrixReduction!(M)
-    keep_indices = findall(v-> !all(v .== 0), eachcol(M))::Vector{Int}
+    basic_reduction!(M)
+    keep_indices = findall(v-> any(!=(0), v), eachcol(M))::Vector{Int}
     return int[keep_indices]
 end
 

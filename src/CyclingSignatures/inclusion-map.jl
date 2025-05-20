@@ -226,6 +226,10 @@ function SBInclusionHelper(cplx, cplxPoints, h1_gen, boxsize, sphereBundleRadius
                 filter_missing, shortest_path_fix, safe_output)
 end
 
+function Base.show(io::IO, bs::SBInclusionHelper)
+    print(io, "SBInclusionHelper")
+end
+
 function sbPointToComponents(p)
     d = div(length(p),2)
     return p[1:d], p[d+1:end]

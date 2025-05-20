@@ -1,5 +1,4 @@
 using Random
-using Combinatorics
 
 function lmsTestdata(n,k;bound=100000)
     # generate boundary matrix of 1-skeleton on n vertices

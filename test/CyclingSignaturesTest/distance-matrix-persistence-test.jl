@@ -5,7 +5,7 @@ using JLD2
 
 @testset "small unit tests" begin
     field = FF{3}
-    edges, coeffs = curveGeneratorData(1,5;F=field)
+    edges, coeffs = curve_generator(1,5;F=field)
 
     @test edges == [(1, 2), (2, 3), (3, 4), (4, 5), (1, 5)]
     @test coeffs == field.([1;1;1;1;-1])
@@ -17,16 +17,16 @@ end
         metric = chebyshev 
         fltThreshold = 1.1
 
-        cc, d_mat,cc_labels = twoPassDMAnnotationFirstPass(trajPoints, metric, fltThreshold)
+        cc, d_mat,cc_labels = dm_components_first_pass_explicit(trajPoints, metric, fltThreshold)
 
         @test size(d_mat) == size(cc_labels)
         @test num_groups(cc) == 2
 
-        smallestNodesDict = twoPassDMAnnotationSecondPass(cc,d_mat,cc_labels)
+        smallestNodesDict = dm_components_second_pass_explicit(cc,d_mat,cc_labels)
 
         @test length(collect(values(smallestNodesDict))) == 2
 
-        smallestNodes = connectedComponentRepresentatives(smallestNodesDict, cc_labels)
+        smallestNodes = component_representatives(smallestNodesDict, cc_labels)
 
         pd = persistenceDiagramFromNodes(smallestNodes, trajPoints, metric)
         @test length(pd) == 1
@@ -80,8 +80,8 @@ end
     @testset "first pass" for rng in rngs
         trajPoints = get(rt_lorenz, rng)
 
-        cc, _, cc_labels = twoPassDMAnnotationFirstPass(trajPoints, d_lorenz, boxsize_lorenz)
-        cc2, cc_labels2 = twoPassDMAnnotationFirstPass2(trajPoints, d_lorenz, boxsize_lorenz)
+        cc, _, cc_labels = dm_components_first_pass_explicit(trajPoints, d_lorenz, boxsize_lorenz)
+        cc2, cc_labels2 = dm_components_first_pass_implicit(trajPoints, d_lorenz, boxsize_lorenz)
 
         @test cc.parents == cc2.parents
         @test cc.ranks == cc2.ranks
@@ -92,11 +92,11 @@ end
     @testset "second pass" for rng in rngs
         trajPoints = get(rt_lorenz, rng)
 
-        cc, dmat, cc_labels = twoPassDMAnnotationFirstPass(trajPoints, d_lorenz, boxsize_lorenz)
-        cc2, cc_labels2 = twoPassDMAnnotationFirstPass2(trajPoints, d_lorenz, boxsize_lorenz)
+        cc, dmat, cc_labels = dm_components_first_pass_explicit(trajPoints, d_lorenz, boxsize_lorenz)
+        cc2, cc_labels2 = dm_components_first_pass_implicit(trajPoints, d_lorenz, boxsize_lorenz)
 
-        dict_1 = twoPassDMAnnotationSecondPass(cc, dmat, cc_labels)
-        dict_2 = twoPassDMAnnotationSecondPass2(cc, cc_labels, trajPoints, d_lorenz)
+        dict_1 = dm_components_second_pass_explicit(cc, dmat, cc_labels)
+        dict_2 = dm_components_second_pass_implicit(cc, cc_labels, trajPoints, d_lorenz)
         @test dict_1 == dict_2
     end
 end
