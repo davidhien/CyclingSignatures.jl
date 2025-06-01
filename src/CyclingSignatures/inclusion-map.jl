@@ -1,39 +1,302 @@
-###
-### Code for computing edge boxes
-###
-"""
-    function edgeBoxes(p1, p2, boxsize=1)
+abstract type AbstractComparisonSpace end
 
-Computes all boxes of size boxsize in which the edge [p1;p2] lies.
 """
-function edgeBoxes(p1, p2, boxsize=1)
-    if boxsize != 1
-        p1 /= boxsize
-        p2 /= boxsize
+    map_cycle(cs::AbstractHomologicalComparisonSpace, points, simplices, coeffs)
+
+
+"""
+map_cycle(cs::AbstractComparisonSpace, points, simplices, coeffs) = error("Not implemented for this type.")
+
+abstract type AbstractCubicalComparisonSpace <: AbstractComparisonSpace end
+
+struct CubicalComparisonSpace{S,T,V} <: AbstractComparisonSpace
+    pts::Matrix{S}
+    boxsize::T
+    cplx::CellComplex
+    h1::V
+end
+
+#function CubicalComparisonSpace(pts::Matrix{S}, boxsize)
+#    cplx = vr_incremental(pts, chebyshev, 1)
+#
+#end
+
+struct UTBCubicalComparisonSpace{S,TT,TM,V} <: AbstractComparisonSpace
+    pts::Matrix{S}
+    cplx::CellComplex
+    h1::V
+    boxsize::TM
+    utb_radius::TT
+end
+
+# things that need to be done differently for utb
+# - edge_boxes
+
+function map_cycle(cs::AbstractCubicalComparisonSpace, points::AbstractMatrix, simplices, coeffs)
+    # TODO: save allocations by adding to this chain only
+    v = spzeros(eltype(coeffs), length(cs.cplx.cells[1]))
+
+    for (a,simplex) in zip(coeffs,simplices)
+        v += a*map_simplex_into_cubes(cs, points, simplex)
     end
-    b1 = Int.(round.(p1))
-    b2 = Int.(round.(p2))
 
-    boxes = Vector{Int}[b1]
+    return annotate_chain(cs, chain)
+end
+
+function annotate_chain(cs::AbstractCubicalComparisonSpace, chain)
+    return cs.h1*chain
+end
+
+function map_simplex_into_cubes(cover::AbstractCubicalComparisonSpace, points, simplex)
+    if length(simplex) == 2
+        return map_edge_to_cubes(cover, @view(points[:,1]), @view(points[:,2]))
+    end
+    error("Not supported yet.")
+end
+
+function map_edge_into_cubes(cover::AbstractCubicalComparisonSpace, p1, p2)
+    cover_boxes, indices = cover_boxes_indices(cover, p1, p2)
+    return generate_chain(cover, cover_boxes, indices)
+end
+
+function generate_chain(cover::AbstractCubicalComparisonSpace, cover_boxes, indices)
+    v = spzeros(Int, length(cover.cplx.cells[1]))
+
+    for i in 1:length(cover_boxes)-1
+        if chebyshev(cover_boxes[i], cover_boxes[i+1]) == 1
+            # find edge in cplx
+            e = find_edge(cover.cplx, indices[i], indices[i+1])
+            v[e] += sign(cover_boxes[i+1]-cover_boxes[i])
+        else
+            error("Edge not in cplx")
+            #edge_list = fix_edge(cover.cplx, indices[i], indices[i+1])
+        end
+    end
+
+    return v
+end
+
+"""
+    cover_boxes_indices(cover::AbstractCubicalComparisonSpace, p1, p2)
+
+Computes the boxes and their indices in the cover which intersect the edge [p1;p2].
+
+# Returns
+- `cover_boxes`: the boxes in the cover which intersect the edge,
+- `indices`: the indices of the boxes in the cover which intersect the edge.
+Vectors may contain dublicate entries but no successive duplicate entries.
+Boxes are sorted in the order that they are traversed by the edge.
+"""
+function cover_boxes_indices(cover::AbstractCubicalComparisonSpace, p1, p2)
+    cover_boxes = edge_boxes(cover, p1, p2)
+    indices  = Int[]
+    filter!(cover_boxes) do box
+        ind = searchsorted(cover.pts, box)
+        if length(ind) == 1
+            push!(indices, ind[1])
+        end
+        return isempty(ind)
+    end
+    # remove successive duplicates
+    no_duplicate_indices = filter(i -> i == 1 || indices[i] != indices[i-1], 1:length(indices))
+    return cover_boxes[no_duplicate_indices], indices[no_duplicate_indices]
+end
+
+function edge_boxes(cover::CubicalComparisonSpace, p1, p2)
+    q1 = p1/cover.boxsize
+    q2 = p2/cover.boxsize
+    box1 = round.(Int, q1)
+    box2 = round.(Int, q2)
+
+    if box1 == box2
+        return [box1]
+    elseif chebyshev(box1, box2) == 1
+        return [box1, box2]
+    else
+        return edge_boxes(q1,q2)
+    end
+end
+
+function edge_boxes(cover::UTBCubicalComparisonSpace, x1, x2)
+    d = div(length(x1), 2)
+    b1 = Vector{Int}(undef, 2d)
+    b2 = Vector{Int}(undef, 2d)
+    @inbounds for i in 1:d
+        b1[i] = round(Int, cover.boxsize * x1[i])
+        b2[i] = round(Int, cover.boxsize * x2[i])
+        b1[d+i] = round(Int, cover.utb_radius * x1[d+i])
+        b2[d+i] = round(Int, cover.utb_radius * x2[d+i])
+    end
+
+    # Compute distances
+    dist = maximum(i -> abs(b1[i] - b2[i]), 1:d)
+
+    if dist == 0
+        return [b1]
+    elseif dist == 1
+        return [b1, b2]
+    end
+
+    m_p,m_v = (p1+p2)/2,normalize!(v1+v2,Inf)
+    boxes1 = edgeBoxesSphereBundle(p1, m_p, v1, m_v, h.sphereBundleRadius)
+    boxes2 = edgeBoxesSphereBundle(m_p, p2, m_v, v2, h.sphereBundleRadius)
+    return vcat(boxes1,boxes2)
+end
+
+###
+### Code for covering edges with boxes
+###
+"""
+    edge_boxes(p1, p2)
+
+Computes the centers of all integer grid boxes which intersect the edge `[p1;p2]`.
+"""
+function edge_boxes(p1, p2)
+    n = length(p1)
+    if n != length(p2)
+        error("p1 and p2 have to be of the same dimension.")
+    end
+    b1 = round.(Int, p1)
+    b2 = round.(Int, p2)
+
+    if b1 == b2
+        return [b1]
+    end
+
+    # setup variables
+    t_next_crossing = zeros(length(p1)) # t of the next crossing in the component
+    t_between_crossings = zeros(length(p1))
+    dir = p2 - p1
+    dir_sign = Int.(sign.(dir))
+
+    for i in 1:n
+        if b1[i] != b2[i]
+            t_next_crossing[i] = (2*(b1[i]-p1[i]) + dir_sign[i])/(2*(dir[i]))
+            t_between_crossings[i] = 1/abs(dir[i])
+        else
+            t_next_crossing[i] = Inf
+            t_between_crossings[i] = Inf
+        end
+    end
+
+    # main loop
+    boxes = Vector{Int}[copy(b1)]
     bnext = b1
     while bnext != b2
-        bnext = nextBox(bnext, 1, p1, p2-p1)
-        push!(boxes, bnext)
+        i = argmin(t_next_crossing)
+        bnext[i] += dir_sign[i]
+        push!(boxes, copy(bnext))
+        # update t_next_crossing
+        t_next_crossing[i] += t_between_crossings[i]
     end
     return boxes
 end
 
-function nextBox(boxCenter, boxsize, p, v)
-    r = boxsize/2
-    allLambda1 = (r .+ boxCenter - p) ./ v
-    allLambda2 = (boxCenter - p .- r) ./ v
-
-    maxLambdas = map(maximum,zip(allLambda1,allLambda2))
-    lambda = minimum(maxLambdas)
-    shift = (maxLambdas .== lambda) .* Int.(sign.(v))
-
-    return boxCenter + boxsize * shift
+function edge_boxes(p1, p2, boxsize)
+    error("This is deprecated due to inconsistencies")
+    if boxsize != 1
+        p1 /= boxsize
+        p2 /= boxsize
+    end
+    return edge_boxes(p1, p2)
 end
+
+function edge_boxes_sphere_bundle(p1, p2, v1, v2, sb_radius)
+    lambdas = projection_max_switches(sb_radius*v1, sb_radius*v2)
+
+    # in each interval [lambdas[i],lambdas[i+1]], the edge is projected to the same face
+    #   => normal edge_boxes can be used
+    boxes = Vector{Int}[]
+    x1 = 1.0 * [p1;v1]
+    x2 = 1.0 * [p1; sb_radius*normalize(v1,Inf)]
+    for i in 2:length(lambdas)
+        l = lambdas[i]
+        x1 .= x2
+        x2 .= [ (1-l)*p1 + l*p2; sb_radius*normalize((1-l)*v1 + l*v2,Inf) ]
+        eb = edge_boxes(x1, x2)
+        if !isempty(boxes) && boxes[end] == eb[1]
+            append!(boxes, eb[2:end])
+        else
+            append!(boxes, eb)
+        end
+    end
+    return boxes
+end
+
+@doc raw"""
+    projection_max_switches(v1, v2)
+
+Computes a vector of times `T` which partition the interval `[0,1]` such that
+`λ \mapsto (1-λ)v_1 + λ v_2` has the same maximal component in each interval `[T[0];T[1]]`.
+"""
+function projection_max_switches(v1, v2)
+    Ts = zeros(1)
+    max_i = projection_initial_max_component(v1, v2)
+    cur_t = 0
+    t_swap_min = 1.0
+    while Ts[end] < 1
+        for i in 1:length(v1)
+            t1 = intersect_lines(v1[max_i], v1[i], v2[max_i], v2[i])
+            if cur_t < t1 && t1 < t_swap_min
+                t_swap_min = t1
+            end
+            t2 = intersect_lines(v1[max_i], -v1[i], v2[max_i], -v2[i])
+            if cur_t < t2 && t2 < t_swap_min
+                t_swap_min = t2
+            end
+            # if either intersection point is in [t_swap_min,1] make it the new intersection point
+        end
+        # update
+        v = (1-t_swap_min)*v1 + t_swap_min*v2
+        max_i = projection_initial_max_component(v,v2)
+        # reset
+        push!(Ts, t_swap_min)
+        cur_t = t_swap_min
+        t_swap_min = 1.0
+    end
+
+    return Ts
+end
+
+function projection_initial_max_component(v1, v2)
+    max_v1 = maximum(abs, v1)
+    is = findall(x-> isapprox(abs(x), max_v1), v1)
+    return argmax(i-> (sign(v1[i])>= 0 ? 1 : -1)*v2[i], is)
+end
+
+"""
+    intersect_lines(a,b)
+
+Computes the intersection of the lines `(1-l)*a[i]+l*b[i]`
+"""
+function intersect_lines(a,b)
+    return intersect_lines(a[1,], a[2], b[1], b[2]) # note condition not great, maybe use geometrybasics implementation
+end
+
+function intersect_lines(a1, a2, b1, b2)
+    return (a1-a2)/(b2-b1-a2+a1) # note condition not great, maybe use geometrybasics implementation
+end
+
+
+
+
+
+
+
+
+
+
+
+############################################################################################
+############################################################################################
+#
+# OLD CODE:
+#
+############################################################################################
+############################################################################################
+
+
+
 
 """
     edgeBoxesSphereBundle(p1, p2, v1, v2, radius, sphereBundleRadius)
@@ -42,10 +305,10 @@ Returns a vector of all boxes between (p1,v1) and (p2,v2) in the sphere bundle.
 
 The sphere bundle consists of
 - boxes in space have edge length `boxsize`,
-- boxes in sphere bundle are taken in the sphere with radius `sphereBundleRadius` and have edge length one.  
+- boxes in sphere bundle are taken in the sphere with radius `sphereBundleRadius` and have edge length one.
 
 In the computation, boxsize and sphereBundleRadius are accounted for as follows:
-- boxsize is the edge length of the box, it is assumed that 
+- boxsize is the edge length of the box, it is assumed that
 """
 function edgeBoxesSphereBundle(p1, p2, v1, v2, sphereBundleRadius=1)
     allBoxes = Vector{Vector{Int}}[]
@@ -53,11 +316,11 @@ function edgeBoxesSphereBundle(p1, p2, v1, v2, sphereBundleRadius=1)
     while (λ = nextMaxSwitchLambda(v1,v2)) < 1
         pNew = (1-λ)*p1+λ*p2
         vNew = normalize((1-λ)*v1+λ*v2,Inf)
-        push!(allBoxes, edgeBoxes([p1;sphereBundleRadius*v1],[pNew;sphereBundleRadius*vNew])[1:end-1])
+        push!(allBoxes, edge_boxes([p1;sphereBundleRadius*v1],[pNew;sphereBundleRadius*vNew])[1:end-1])
         p1 = pNew
         v1 = vNew
     end
-    push!(allBoxes, edgeBoxes([p1;sphereBundleRadius*v1],[p2;sphereBundleRadius*v2]))
+    push!(allBoxes, edge_boxes([p1;sphereBundleRadius*v1],[p2;sphereBundleRadius*v2]))
     return reduce(vcat, allBoxes)
 end
 
@@ -191,7 +454,7 @@ More precisely, an object of this type contains the information of a cubical com
 given an edge in the union of the boxes, find an inclusion into the Nerve of the cubical cover.
 
 Constructor is
-    function SphereBundleInclusionHelper(cplx, cplxPoints, radius, sphereBundleRadius; 
+    function SphereBundleInclusionHelper(cplx, cplxPoints, radius, sphereBundleRadius;
                                         filter_missing=false, shortest_path_fix=false, safe_output=true)
 where
 - cplx is a simplicial complex,
@@ -216,13 +479,13 @@ mutable struct SBInclusionHelper{S<:AbstractVector{Int},T<:Real} <: AbstractIncl
     safe_output::Bool
 end
 
-function SBInclusionHelper(cplx, cplxPoints, h1_gen, boxsize, sphereBundleRadius; 
+function SBInclusionHelper(cplx, cplxPoints, h1_gen, boxsize, sphereBundleRadius;
                                                                 filter_missing=false, shortest_path_fix=false, safe_output=true)
     cplxPointsVec = collect(eachcol(cplxPoints))
     cpSortPerm = sortperm(cplxPointsVec)
     cplxPointsSorted = cplxPointsVec[cpSortPerm]
 
-    return SBInclusionHelper(cplx, cplxPointsSorted, cpSortPerm, sparse(h1_gen'), boxsize, sphereBundleRadius, 
+    return SBInclusionHelper(cplx, cplxPointsSorted, cpSortPerm, sparse(h1_gen'), boxsize, sphereBundleRadius,
                 filter_missing, shortest_path_fix, safe_output)
 end
 
@@ -278,20 +541,20 @@ end
 ###
 
 function inclusionIndices(h::AbstractInclusionHelper, p1, p2)
-    boxes = edgeBoxes(h, p1, p2)
+    boxes = edge_boxes(h, p1, p2)
     return getInclusionEdgeBoxIndices(boxes, getCplxPointsSorted(h), getCplxSortPerm(h); incKwargs(h)...)
 end
 
-function edgeBoxes(h::AbstractInclusionHelper, p1, p2)
+function edge_boxes(h::AbstractInclusionHelper, p1, p2)
     @info typeof(h)
     error("Check type specialization in edgeBoxes")
 end
 
-function edgeBoxes(h::InclusionHelper, p1, p2)
-    return edgeBoxes(p1,p2,h.boxsize)    
+function edge_boxes(h::InclusionHelper, p1, p2)
+    return edge_boxes(p1,p2,h.boxsize)
 end
 
-function edgeBoxes(h::SBInclusionHelper, sb_p1, sb_p2)
+function edge_boxes(h::SBInclusionHelper, sb_p1, sb_p2)
     p1,v1 = sbPointToComponents(sb_p1)
     p2,v2 = sbPointToComponents(sb_p2)
     p1 ./= h.boxsize
@@ -302,7 +565,7 @@ function edgeBoxes(h::SBInclusionHelper, sb_p1, sb_p2)
     # check if they are in same box and return the box if true
 
     p_dist = maximum(i->abs(round(Int, p1[i]) - round(Int,p2[i])), 1:length(p1))
-    v_dist = maximum(i->abs(round(Int, h.sphereBundleRadius*v1[i]) - round(Int,h.sphereBundleRadius*v2[i])), 1:length(v1)) 
+    v_dist = maximum(i->abs(round(Int, h.sphereBundleRadius*v1[i]) - round(Int,h.sphereBundleRadius*v2[i])), 1:length(v1))
 
     if p_dist == 0 && v_dist == 0
         return [round.(Int,[p1;h.sphereBundleRadius*v1]) ]
@@ -327,7 +590,7 @@ The keyword arguments allow different levels of fixing this error:
 - if in addition, shortest_path_fix is set to true, attempt to fix dynamic inconsistencies using shortest path heuristic
 - if safe_output, it is guaranteed that the output is dynamically consistent, otherwise an error is thrown
 
-Boxes is assumed to be a vector of boxes along an edge. 
+Boxes is assumed to be a vector of boxes along an edge.
 
 Throws ErrorException in error cases. TODO: maybe fix this
 """
@@ -377,7 +640,7 @@ end
 
 ###
 ### Shortest Path Fix
-### This Heuristic is needed since the cubes only cover the data points while a thickening of the cubes 
+### This Heuristic is needed since the cubes only cover the data points while a thickening of the cubes
 ### (which still has the same homotopy type) also covers a thickening of the data.
 ### In order to construct the inclusion map we then sometimes have to fix the map.
 ###
@@ -398,7 +661,7 @@ end
 """
     function shortestPathInclusion(box1, box2, cplxPointsVecSorted)
 
-    Given two boxes, returns a shortest path between them using the boxes in cplxPointsVecSorted. 
+    Given two boxes, returns a shortest path between them using the boxes in cplxPointsVecSorted.
 """
 function shortestPathInclusion(box1, box2, cplxPointsVecSorted)
     boxDist = chebyshev(box1, box2)
@@ -416,7 +679,7 @@ end
     function bfsShortestPath(box1, box2, boxesSorted)
 
 Finds a shortets path between box1 and box2 in boxesSorted. Requires that box1 and box2 are in boxesSorted.
-Returns a vector of box indices. 
+Returns a vector of box indices.
 """
 function bfsShortestPath(box1, box2, boxesSorted)
     # TODO: check if it is necessary to choose a special shortest path (one with small l1 variance)
@@ -451,7 +714,7 @@ function bfsShortestPath(box1, box2, boxesSorted)
                         i = predecessor[i]
                     end
                     return reverse(retVal)
-                end    
+                end
             end
         end
     end

@@ -106,7 +106,7 @@ end
 
 function SBBoxSpace(SB_pts, boxsize, sphereBundleRadius; kwargs...)
     SB_pts = unique(SB_pts, dims=2)
-    dm_pts = sphereBundleDistanceMatrix(SB_pts)
+    dm_pts = pairwise(chebyshev, SB_pts, dims=2)
     cplx, h1_gen, h1 = boxSpaceH1Info(dm_pts)
 
     X,VF,SB_ind = sphereBundleToComponents(SB_pts)
@@ -131,7 +131,7 @@ function getPlotPoints(bs::SBBoxSpace,offset=.1)
 end
 
 function boxSpaceH1Info(dm_X)
-    cplx = vrIncremental(dm_X, 1.5)
+    cplx = vr_incremental(dm_X, 1.5)
     @info string("#edges=", length(cplx.cells[1]), ", #triangles=", length(cplx.cells[2]))
     D0 = coboundaryMatrix(cplx, 0)
     D1 = coboundaryMatrix(cplx, 1)
@@ -198,7 +198,7 @@ function trajectoryToTrajectorySpaceSB(Y,Z, boxsize, sb_radius; t_vec=nothing, m
     if isnothing(metric)
         d = div(size(ts,1),2)
         # nerve theorem allows a blow up to boxsize in space and 1/sb_radius in the sphere
-        metric = SBDistance(d, boxsize*sb_radius)
+        metric = DynamicDistance(d, boxsize*sb_radius)
     end
 
     return TrajectorySpace(rt, boxSpace, metric)
@@ -253,7 +253,7 @@ end
 
 Computes the cycling barcode for a segment of trajSpace.
 
-The range indicates the segment of trajSpace to be used, fltThreshold the maximal threshold for the persistence calculation. 
+The range indicates the segment of trajSpace to be used, fltThreshold the maximal threshold for the persistence calculation.
 """
 function evaluateCycling(alg::Val, trajSpace::TrajectorySpace, range, fltThreshold, field=DEFAULT_FIELD)
     traj = getTrajectory(trajSpace)
@@ -265,7 +265,7 @@ end
 """
     function trajectoryBarcode(alg, trajPoints, metric, fltThreshold)
 
-Computes a barcode for the trajectory specified by `trajPoints` using the given `metric`. 
+Computes a barcode for the trajectory specified by `trajPoints` using the given `metric`.
 The parameter `fltThreshold` determines how far the filtrations are evaluated.
 
 # Arguments
@@ -324,6 +324,6 @@ end
 # TODOs:
 # - allow to specify metric in BoxSpace and SBBoxSpace
 # - include a metric for the filtration
-# - construct VR complex of BoxSpace directly from metric or even better, compute h_1 directly from 
+# - construct VR complex of BoxSpace directly from metric or even better, compute h_1 directly from
 # - improve API for TrajectorySpace
 # - remove PersistenceDiagrams dependency, or at least dont use keyword-argument fields to store representative data

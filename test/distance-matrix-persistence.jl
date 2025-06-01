@@ -2,15 +2,15 @@ using Test
 using CyclingSignatures
 using LinearAlgebra, Distances
 import DataStructures: num_groups
-import CyclingSignatures: curve_generator, vertex_to_essential_bar, component_representatives
+import CyclingSignatures: curve_cycle, vertex_to_essential_bar, component_representatives
 import CyclingSignatures: dm_components_first_pass_explicit, dm_components_second_pass_explicit
 import CyclingSignatures: dm_components_first_pass_implicit, dm_components_second_pass_implicit
 import CyclingSignatures: dm_components_explicit, dm_components_implicit
 include("test-util.jl")
 
-@testset "curve_generator" begin
+@testset "curve_cycle" begin
     field = FF{3}
-    edges, coeffs = curve_generator(1,5;F=field)
+    edges, coeffs = curve_cycle(1,5;F=field)
 
     @test edges == [(1, 2), (2, 3), (3, 4), (4, 5), (1, 5)]
     @test coeffs == field.([1;1;1;1;-1])
@@ -74,7 +74,7 @@ end
     @testset "implicit" begin
         min_vertices_impl = dm_components_implicit(points, metric, flt_threshold)
         @test length(min_vertices_impl) == 2
-        
+
         v = sort(map(t-> t[2] - t[1] + 1, min_vertices_impl))  # vertex diagonals
         @test v[1] >=  9
         @test v[1] <= 11
@@ -92,7 +92,7 @@ end
     end
     @testset "implicit" begin
         min_vertices_impl = dm_components_implicit(points, metric, flt_threshold)
-        @test length(min_vertices_impl) == 5        
+        @test length(min_vertices_impl) == 5
     end
 end
 
