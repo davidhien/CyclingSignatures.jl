@@ -14,7 +14,7 @@ end
 @testset "circle datasets" begin
     @testset "simple circle 4 points" begin
         trajPoints = [0 1 2 1; 0 1 0 -1]
-        metric = chebyshev 
+        metric = chebyshev
         fltThreshold = 1.1
 
         cc, d_mat,cc_labels = dm_components_first_pass_explicit(trajPoints, metric, fltThreshold)
@@ -38,9 +38,9 @@ end
         # TODO: make the following into an actual test
         Y = circleTimeSeries(10)
         trajPoints = Y[:,1:150]
-        metric = chebyshev 
+        metric = chebyshev
         threshold = .1
-        pd = trajectoryBarcode(Val(:DistanceMatrix), trajPoints, metric, threshold)
+        pd = trajectory_barcode(Val(:DistanceMatrix), trajPoints, metric, threshold)
         @test length(pd) == 1
     end
 end
@@ -48,12 +48,12 @@ end
 @testset "generator test" begin
     @testset "4 point circle test" begin
         trajPoints = [0 1 2 1; 0 1 0 -1]
-        metric = chebyshev 
+        metric = chebyshev
         fltThreshold = 1.1
 
         k = 23
-        field = FF{k}        
-        traj_barc = trajectoryBarcode(Val(:DistanceMatrix), trajPoints, metric, fltThreshold, field)
+        field = FF{k}
+        traj_barc = trajectory_barcode(Val(:DistanceMatrix), trajPoints, metric, fltThreshold, field)
         @test traj_barc[1].simplex_list == [ (1, 2), (2, 3), (3, 4), (1, 4)]
         @test traj_barc[1].coeff_list == field.([1,1,1,-1])
     end
@@ -103,12 +103,12 @@ end
 
 @testset "Comparison Test DistanceMatrix and DistanceMatrixOld" begin
     Y_lorenz, Z_lorenz, t_lorenz = loadLorenzTestData()
-    
+
     boxsize_lorenz = 8
     sb_radius_lorenz=1
     ts_lorenz = trajectoryToTrajectorySpaceSB(Y_lorenz, Z_lorenz, boxsize_lorenz, sb_radius_lorenz, t_vec = t_lorenz; filter_missing=true, shortest_path_fix=false)
     cyc1 = evaluateCycling(Val(:DistanceMatrix), ts_lorenz, 282670:282670+80, 8)[:]
     cyc2 = evaluateCycling(Val(:DistanceMatrixOld), ts_lorenz, 282670:282670+80, 8)[:]
     @test length(cyc1) == length(cyc2) == 1
-    @test isapprox(cyc1[1].birth, cyc2[1].birth) 
+    @test isapprox(cyc1[1].birth, cyc2[1].birth)
 end

@@ -1,4 +1,4 @@
-function trajectoryBarcode(::Val{:Ripserer}, trajPoints, metric, fltThreshold, field=Mod{2})
+function trajectory_barcode(::Val{:Ripserer}, trajPoints, metric, fltThreshold, field=Mod{2})
     dm_traj = pairwise(metric, trajPoints)
     fltTraj = Rips(dm_traj, threshold=fltThreshold)
     trajDiag = ripserer(fltTraj, alg=:involuted, reps=true, field=field)[2]

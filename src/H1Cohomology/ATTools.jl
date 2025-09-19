@@ -7,11 +7,14 @@ export Simplex, boundaryOperator
 export firstCohomology
 export H1, betti_1, circularCoordinates
 
+export vr_incremental
+
 import Base: hash, ==
 using LinearAlgebra
 using SparseArrays
 using DataStructures
 using Graphs, MetaGraphs
+using Distances: pairwise, chebyshev
 
 include("ChainComplex.jl")
 include("AbstractCell.jl")

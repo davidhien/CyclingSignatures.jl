@@ -14,6 +14,8 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "Getting Started" => "getting-started.md",
+        "API" => "api.md",
         "Internal" => [
             "CyclingSignatures" => "cycling-signatures.md",
             "ATTools" => "at-tools.md",

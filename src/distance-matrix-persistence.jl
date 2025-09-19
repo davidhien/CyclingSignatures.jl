@@ -1,7 +1,19 @@
-"""
-    trajectoryBarcode(::Val{:DistanceMatrix}, points, metric, fltThreshold, field=DEFAULT_FIELD)
+struct TrajectoryBar{T<:Integer,N}
+    # helper struct with detailed type information for persistence bar
+    birth::Float64
+    death::Float64
+    simplex_list::Vector{NTuple{N,Int}}
+    coeff_list::Vector{T}
+end
 
-Computes a trajectory barcode using the distance matrix method, for arguments see [`trajectoryBarcode`](@ref).
+function TrajectoryBar(birth, death, simplex_list, coeff_list)
+    return TrajectoryBar(Float64(birth), Float64(death), simplex_list, coeff_list)
+end
+
+"""
+    trajectory_barcode(::Val{:DistanceMatrix}, points, metric, fltThreshold, field=DEFAULT_FIELD)
+
+Computes a trajectory barcode using the distance matrix method, for arguments see [`trajectory_barcode`](@ref).
 This assumes (and formall makes use of) a curve hypothesis.
 
 The distance complex of a the points in `points` with respect to the `metric` is the filtered complex where
@@ -11,7 +23,7 @@ The distance complex of a the points in `points` with respect to the `metric` is
 # Note:
 In general, the returned collection of bars is not a persistence diagram for the point cloud.
 """
-function trajectoryBarcode(::Val{:DistanceMatrix}, points, metric, flt_threshold, field=DEFAULT_FIELD)
+function trajectory_barcode(::Val{:DistanceMatrix}, points, metric, flt_threshold, field=DEFAULT_FIELD)
     min_vertices = dm_components_implicit(points, metric, flt_threshold)
 
     # generatePersistence diagram
@@ -19,7 +31,7 @@ function trajectoryBarcode(::Val{:DistanceMatrix}, points, metric, flt_threshold
     #return persistenceDiagramFromNodes(smallestNodes, points, metric, field=field)
 end
 
-function trajectoryBarcode(::Val{:DistanceMatrixOld}, points, metric, flt_threshold, field=DEFAULT_FIELD)
+function trajectory_barcode(::Val{:DistanceMatrixOld}, points, metric, flt_threshold, field=DEFAULT_FIELD)
     min_vertices = dm_components_explicit(points, metric, flt_threshold)
 
     # generatePersistence diagram
@@ -81,9 +93,9 @@ function dm_components_explicit(points, metric, flt_threshold)
 end
 
 """
-    filtration_min_vertices_implicit_dm(points, metric, fltThreshold)
+    filtration_min_vertices_implicit_dm(points, metric, flt_threshold)
 
-Computes a filtration-minimal vertex of each connected component of the distance complex specified by `points` and `metric` up to the filtration threshold `fltThreshold`.
+Computes a filtration-minimal vertex of each connected component of the distance complex specified by `points` and `metric` up to the filtration threshold `flt_threshold`.
 This is implmented using a two pass annotation algorithm for images, the image being the upper right part of the distance matrix.
 In this implementation, the distance matrix is *not* computed explicitly.
 """

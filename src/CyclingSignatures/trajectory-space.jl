@@ -236,18 +236,6 @@ function maxInclusionThreshold(boxsize, sb_radius, C)
     return min(boxsize, C/sb_radius)
 end
 
-struct TrajectoryBar{T<:Integer,N}
-    # helper struct with detailed type information for persistence bar
-    birth::Float64
-    death::Float64
-    simplex_list::Vector{NTuple{N,Int}}
-    coeff_list::Vector{T}
-end
-
-function TrajectoryBar(birth, death, simplex_list, coeff_list)
-    return TrajectoryBar(Float64(birth), Float64(death), simplex_list, coeff_list)
-end
-
 """
     function evaluateCycling(alg::Val, trajSpace::TrajectorySpace, range, fltThreshold)
 
@@ -258,12 +246,12 @@ The range indicates the segment of trajSpace to be used, fltThreshold the maxima
 function evaluateCycling(alg::Val, trajSpace::TrajectorySpace, range, fltThreshold, field=DEFAULT_FIELD)
     traj = getTrajectory(trajSpace)
     trajPoints = get(traj, range)
-    trajBars = trajectoryBarcode(alg, trajPoints, getMetric(trajSpace), fltThreshold, field)
+    trajBars = trajectory_barcode(alg, trajPoints, getMetric(trajSpace), fltThreshold, field)
     return inclusionDiagram(trajPoints, trajBars, getBoxSpace(trajSpace))
 end
 
 """
-    function trajectoryBarcode(alg, trajPoints, metric, fltThreshold)
+    function trajectory_barcode(alg, trajPoints, metric, fltThreshold)
 
 Computes a barcode for the trajectory specified by `trajPoints` using the given `metric`.
 The parameter `fltThreshold` determines how far the filtrations are evaluated.
@@ -277,7 +265,7 @@ The parameter `fltThreshold` determines how far the filtrations are evaluated.
 # Note
 The returned persistence diagram is not guaranteed to be a true persistence diagram for the given curve.
 """
-trajectoryBarcode(alg::Any, trajPoints, metric, fltThreshold, field = DEFAULT_FIELD) = error("Not implemented for specified alg.")
+trajectory_barcode(alg::Any, trajPoints, metric, fltThreshold, field = DEFAULT_FIELD) = error("Not implemented for specified alg.")
 
 """
     function inclusionDiagram(trajPoints, trajDiag, boxSpace)
@@ -318,7 +306,7 @@ end
 function getTrajDiag(alg::Val, trajSpace::TrajectorySpace, range, fltThreshold)
     traj = getTrajectory(trajSpace)
     trajPoints = get(traj, range)
-    return trajectoryBarcode(alg, trajPoints, getMetric(trajSpace), fltThreshold)
+    return trajectory_barcode(alg, trajPoints, getMetric(trajSpace), fltThreshold)
 end
 
 # TODOs:

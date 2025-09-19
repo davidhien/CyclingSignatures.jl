@@ -7,7 +7,7 @@ function double_circle_time_series(subdivision, bits)
     a = zeros(2,0)
     template = circle_time_series(subdivision, 1)[:,1:end-1]
     l = template .+ [-1,0]
-    r = -1*template .+ [1,0]
+    r =  [-1,1] .*template .+ [1,0]
     for b in bits
         if b == 0
             a = hcat(a, l)
