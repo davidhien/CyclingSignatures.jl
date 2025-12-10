@@ -118,7 +118,7 @@ function component_representatives(min_vertex_dict, cc_labels)
     return map(k-> min_vertex_dict[k], keys_filtered)
 end
 
-function dm_components_second_pass_explicit(cc::IntDisjointSets{Int}, d_mat,cc_labels::Matrix{Int})
+function dm_components_second_pass_explicit(cc, d_mat,cc_labels::Matrix{Int})
     smallestNodes = Dict{Int,Tuple{Int,Int}}()
     _,n = size(d_mat)
     @inbounds for j = 1:n
@@ -138,7 +138,7 @@ function dm_components_second_pass_explicit(cc::IntDisjointSets{Int}, d_mat,cc_l
     return smallestNodes
 end
 
-function dm_components_second_pass_implicit(cc::IntDisjointSets{Int}, cc_labels::Matrix{Int}, points, metric)
+function dm_components_second_pass_implicit(cc, cc_labels::Matrix{Int}, points, metric)
     smallestNodes = Dict{Int,Tuple{Int,Int}}()
     smallestNodeVal = Dict{Int,Float64}()
     n = size(points,2)

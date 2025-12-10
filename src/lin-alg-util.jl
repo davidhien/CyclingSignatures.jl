@@ -84,5 +84,14 @@ function colspace_normal_form(M)
     reduced_column_echelon_form!(N)
     # remove columns without pivots
     k = findfirst(!iszero, eachcol(N))
+    if k === nothing
+        return N[:,1:0]  # return empty matrix with correct number of rows
+    end
     return N[:,k:end]
+end
+
+function is_subspace(V, W)
+   M = copy(hcat(W, V))
+   basic_reduction!(M)
+   return all(iszero, M[:, size(W, 2)+1:end])
 end

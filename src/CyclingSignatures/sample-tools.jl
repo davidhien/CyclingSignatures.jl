@@ -124,7 +124,7 @@ function resampleToDistance(ds, dt::Number, ic, ec, r, d; pp=identity, norm_sb=n
         X = [X ec]
         v = 2
         while !(isSpaceConsistent(X[:,end-1], X[:,end]) && isSBConsistent(X[:,end-1], X[:,end]))
-            reinit!(ds, X[:,end-1])
+            set_state!(ds, X[:,end-1])
             step!(ds, dt/v, true)
             X[:,end] = get_state(ds)
             v *= 2
@@ -174,7 +174,7 @@ function sample_desol_to_distance_sb(sol, vf, dt, t0, dist, r; max_depth=10000)
     ct = 0
     while !(dist(X[:,end], ec) <= r) && (ct += 1) < 100*max_depth
         X = [X ec]
-        dt_cur = t_end - t_cur 
+        dt_cur = t_end - t_cur
         v = 2
         while !(dist(X[:,end], X[:,end-1]) <= r)
             x_new = sol(t_cur + dt_cur/v)
@@ -200,7 +200,7 @@ end
 Adds additional sample points to a time series Y from a dynamical system ds at time step dt such that
 the resulting time series quantized at r is consistent.
 
-Instead of the actual trajectory points, one can also make pp(Y) dynamically consistent, 
+Instead of the actual trajectory points, one can also make pp(Y) dynamically consistent,
 where pp is a postprocessing applied to the data (for example a rescaling).
 
 Furthermore, it is possible to specify a sb_radius and a sb_fct which ensures consistency in the sphere bundle.
@@ -248,7 +248,7 @@ function resampleToConsistent(ds, ic, ec, r, dt; pp=identity, sb_radius=nothing,
         X = [X ec]
         v = 2
         while !(isDynConsistent(pp(X[:,end-1]), pp(X[:,end]), r) && sb_consistency(X[:,end-1], X[:,end]))
-            reinit!(ds, X[:,end-1]);
+            set_state!(ds, X[:,end-1]);
             step!(ds, dt/v, true)
             X[:,end] = get_state(ds)
             v *= 2

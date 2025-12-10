@@ -261,7 +261,7 @@ Inherits from AbstractComparisonSpace.
 Subtypes must implement:
 - `edge_boxes(comparison_space, p1, p2)`: Computes the boxes covering the edge between points `p1` and `p2`.
 - `carrier(comparison_space)`: Returns an associated cubical acyclic carrier.
-- `betti_1(comparison_space)`
+- `betti_1(comparison_space)`: Returns the first betti number of the comparison space.
 """
 abstract type AbstractCubicalComparisonSpace <: AbstractComparisonSpace end
 
@@ -379,7 +379,6 @@ function sb_cubical_vr_comparison_space_via_cover(pts::AbstractMatrix, boxsize, 
     quantized_pts[1:d, :] = round.(Int, pts[1:d, :] ./ boxsize)
     quantized_pts[d+1:2*d, :] = mapslices(v -> round.(Int, normalize(v, Inf) * sb_radius), pts[d+1:2*d, :], dims=1)
     comp_space_pts = sortslices(unique(quantized_pts, dims=2), dims=2)
-    @show comp_space_pts
 
     return SBCubicalComparisonSpace(comp_space_pts, boxsize, sb_radius)
 end

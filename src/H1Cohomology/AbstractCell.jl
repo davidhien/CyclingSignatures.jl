@@ -1,7 +1,6 @@
 """
 The following methods must be implemented:
 - boundaryOperator
--
 """
 abstract type AbstractCell end
 
@@ -9,7 +8,7 @@ abstract type AbstractCell end
 """
     function boundaryMatrix(C1, C2)
 
-Given a pair of cubical chain groups with bdy(C2) ⊂ c1 this computes the boundary matrix
+Given a pair of cubical chain groups with bdy(C2) ⊂ C1 this computes the boundary matrix
 """
 function boundaryMatrix(C1::Vector{T}, C2::Vector{S}) where {S<:AbstractCell, T<:AbstractCell}
     m = length(C1)

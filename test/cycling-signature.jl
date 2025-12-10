@@ -3,7 +3,7 @@ using Test
 using Distances: euclidean, normalize
 include("test-util.jl")
 
-@testset "cycling_signature w/o utb" begin
+@testset "cycling signature w/o utb" begin
     @testset "simple circle data" begin
         # simple circle data testset
         circle_data = mapslices(v -> normalize(v, Inf), circle_time_series(40, 2), dims=2)
@@ -13,7 +13,7 @@ include("test-util.jl")
         comp_space = cubical_vr_comparison_space_via_cover(circle_data, boxsize)
         traj = RefinedEquidistantTrajectory(circle_data)
 
-        tsn = TrajectorySpaceNew(traj, comp_space, euclidean)
+        tsn = TrajectorySpace(traj, comp_space, euclidean)
 
         for i = 1:size(circle_data, 2)
             sig = cycling_signature(Val(:DistanceMatrix), tsn, (1,i), boxsize)
@@ -30,7 +30,7 @@ include("test-util.jl")
         comp_space = cubical_vr_comparison_space_via_cover(circle_data, boxsize)
         traj = RefinedEquidistantTrajectory(circle_data)
 
-        tsn = TrajectorySpaceNew(traj, comp_space, euclidean)
+        tsn = TrajectorySpace(traj, comp_space, euclidean)
 
         # check for dimension 0, 1, 2 at the start
         for i = 1:100
@@ -55,7 +55,7 @@ include("test-util.jl")
 end
 
 
-@testset "cycling-signature w utb" begin
+@testset "cycling signature w utb" begin
         @testset "simple circle utb" begin
         # l_infty circle data
         circle_data = mapslices(v -> normalize(v, Inf), circle_time_series(41, 2), dims=2)
@@ -71,7 +71,7 @@ end
         comp_space = sb_cubical_vr_comparison_space_via_cover(utb_circle_data, boxsize, sb_radius)
         traj = RefinedEquidistantTrajectory(utb_circle_data)
 
-        tsn = TrajectorySpaceNew(traj, comp_space, DynamicDistance(2, sb_radius))
+        tsn = TrajectorySpace(traj, comp_space, DynamicDistance(2, sb_radius))
 
         for i = 1:size(utb_circle_data, 2)
             sig = cycling_signature(Val(:DistanceMatrix), tsn, (1,i), boxsize)
@@ -97,7 +97,7 @@ end
         comp_space = sb_cubical_vr_comparison_space_via_cover(utb_circle_data, boxsize, sb_radius)
         traj = RefinedEquidistantTrajectory(utb_circle_data)
 
-        tsn = TrajectorySpaceNew(traj, comp_space, DynamicDistance(2, sb_radius))
+        tsn = TrajectorySpace(traj, comp_space, DynamicDistance(2, sb_radius))
 
         # check for dimension 0, 1, 2 at the start
         for i = 1:200
@@ -123,17 +123,17 @@ end
     @testset "CyclingSignature" begin
         F = FF{2}
         birth_vector = [1.0, 2.0, 3.0]
-        cycling_matrix = [1 0; 0 1]
+        cycling_matrix = [1 0 1; 0 1 2]
         cs = CyclingSignature(cycling_matrix, birth_vector)
         @test cs.cycling_matrix == cycling_matrix
         @test cs.birth_vector == birth_vector
 
         # Test with incompatible sizes
         @test_throws ArgumentError CyclingSignature(cycling_matrix, [1.0, 2.0])
-        @test dimension(cs) == 2
+        @test dimension(cs) == 3
     end
 
-    @testset "TrajectorySpaceNew" begin
+    @testset "TrajectorySpace" begin
         # generate traj
         traj = Matrix(collect(0:0.1:1)'[:, :])
         rt = RefinedEquidistantTrajectory(traj, [1, 6, 12])
@@ -144,10 +144,10 @@ end
         # generate distance
         d = euclidean
 
-        tsn = TrajectorySpaceNew(rt, comp_space, d)
+        tsn = TrajectorySpace(rt, comp_space, d)
 
-        @test trajectory(tsn) == rt
-        @test comparison_space(tsn) == comp_space
-        @test metric(tsn) == d
+        @test get_trajectory(tsn) == rt
+        @test get_comparison_space(tsn) == comp_space
+        @test get_metric(tsn) == d
     end
 end

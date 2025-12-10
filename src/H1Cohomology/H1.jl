@@ -743,14 +743,13 @@ This matrix type assumes that the number of  entries in each row never increases
 Because of this, we have
 - getindex for a row in log(nnz)
 - getindex for a column in #(nnz in column)
-TODO!
 """
 struct CoredSparseMatrix <: AbstractMatrix{Int}
 	m::Int # Number of rows
 	n::Int # Number of columns
 
 	# Contains 0 if column has no stored entry, index of first stored entry in column in collnk.
-	colinit::Vector{Int} 
+	colinit::Vector{Int}
 
 	# Contains the index of the next stored value in the column or 0 if there is no next index.
 	collnk::Vector{Int}
@@ -772,7 +771,7 @@ end
 function CoredSparseMatrix(A::SparseMatrixCSC{Int,Int})
 	m,n = size(A)
 	nnzA = nnz(A)
-	
+
 	colinit = zeros(Int,n)
 	collnk = zeros(Int, nnzA)
 	colval = zeros(Int,nnzA)
@@ -885,7 +884,7 @@ function Base.setindex!(A::CoredSparseMatrix, v::Int, i::Int, j::Int)
 
 	collnk = getcollnk(A)
 	rowval = getrowval(A)
-	
+
 	ind	= colinit[j]
 	if ind != 0 && rowval[ind] > i
 		ind = 0
@@ -907,7 +906,7 @@ function Base.setindex!(A::CoredSparseMatrix, v::Int, i::Int, j::Int)
 	end
 
 	# now either ind = 0, rowval[ind] < i
-	
+
 	# find insert position
 	rowrngi = rowrng(A::CoredSparseMatrix, i)
 	if isempty(rowrngi)
@@ -1047,7 +1046,7 @@ function apply!(A::CoredSparseMatrix, crOp::CoreductionOperation{T}) where T <: 
 			indDiscard = collnk[indDiscard]
 			# fix 1b: since variable indDiscard changed, need to use prevIndKeep
 			collnk[prevIndKeep] = indKeep
-			
+
 			colval[prevIndKeep] = keepColIndex
 			nzval[prevIndKeep] = -keepColValue*nzval[prevIndKeep]
 		elseif rowval[indDiscard] == rowval[indKeep]

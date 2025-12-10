@@ -44,6 +44,10 @@ function time_domain(trajectory::RefinedEquidistantTrajectory)
     return 1:length(trajectory.t_vec)-1
 end
 
+function t_vec_segment(trajectory::RefinedEquidistantTrajectory, a::Int, b::Int)
+    return trajectory.t_vec[a:b+1]
+end
+
 function Base.show(io::IO, t::RefinedEquidistantTrajectory)
     print(io, "RefinedEquidistantTrajectory $(size(t.trajectory,2)) points in ")
     print(io, "$(length(t.t_vec)-1) steps.")

@@ -15,6 +15,7 @@ makedocs(;
     pages=[
         "Home" => "index.md",
         "Getting Started" => "getting-started.md",
+        "General Usage" => "general-usage.md",
         "API" => "api.md",
         "Internal" => [
             "CyclingSignatures" => "cycling-signatures.md",

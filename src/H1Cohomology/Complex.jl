@@ -35,7 +35,7 @@ end
 """
     function vrIncremental(D::AbstractArray{T,2}, r; maxdim=size(D,1)) where T <: Number
 
-Constructs the VR-complex using the incremental construction.
+Constructs the VR-complex from a distance matrix using the incremental construction.
 """
 function vr_incremental(D::AbstractArray{T,2}, r; maxdim=2) where T<:Number
     n = size(D, 1)

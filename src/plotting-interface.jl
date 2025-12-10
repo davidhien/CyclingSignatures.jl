@@ -1,0 +1,6 @@
+plot_rank_distribution() = error("Install Plots or Makie to use plotting functions.")
+plot_rank_heatmap() = error("Install Plots or Makie to use plotting functions.")
+plot_all_rank_heatmaps() = error("Install Plots or Makie to use plotting functions.")
+plot_rank_distribution_at_r() = error("Install Plots or Makie to use plotting functions.")
+plot_subspace_frequency_at_r() = error("Install Plots or Makie to use plotting functions.")
+plot_cycspace_inclusion() = error("Install Plots or Makie to use plotting functions.")
