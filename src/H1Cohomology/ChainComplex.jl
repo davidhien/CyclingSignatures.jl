@@ -8,7 +8,7 @@ abstract type AbstractChainComplex end
 boundaryMatrices(cplx::AbstractChainComplex) = error()
 
 mutable struct ChainComplex <: AbstractChainComplex
-    boundaryMatrices::Dict{Int,SparseMatrixCSC{Int64,Int64}}
+    boundaryMatrices::Dict{Int,SparseMatrixCSC{Int,Int}}
 end
 
 #getter methodss

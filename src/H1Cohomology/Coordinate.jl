@@ -3,9 +3,9 @@ LSQR_TOL = 1e-11
 struct H1
     # Note: thus far it is implicitely assumed that the ordering of the basis
     # of H₀ is consistent with the order of the points in the set x.
-    generatorMatrix::SparseMatrixCSC{Int64,Int64} # of first cohomology, rows are generators
-    D0::SparseMatrixCSC{Int64,Int64} # first COboundary matrix
-    D1::SparseMatrixCSC{Int64,Int64} # second COboundary matrix
+    generatorMatrix::SparseMatrixCSC{Int,Int} # of first cohomology, rows are generators
+    D0::SparseMatrixCSC{Int,Int} # first COboundary matrix
+    D1::SparseMatrixCSC{Int,Int} # second COboundary matrix
 end
 
 function betti_1(h::H1)

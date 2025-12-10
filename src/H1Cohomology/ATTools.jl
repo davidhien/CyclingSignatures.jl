@@ -10,6 +10,7 @@ export H1, betti_1, circularCoordinates
 export vr_incremental
 
 import Base: hash, ==
+import SparseArrays: SparseMatrixCSC
 using LinearAlgebra
 using SparseArrays
 using DataStructures

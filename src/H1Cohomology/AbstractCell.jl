@@ -55,10 +55,10 @@ end
 
 struct CellComplex{T <: AbstractCell} <: AbstractChainComplex
     cells::Dict{Int,Vector{T}}
-    boundaryMatrices::Dict{Int,SparseMatrixCSC{Int64,Int64}}
+    boundaryMatrices::Dict{Int,SparseMatrixCSC{Int,Int}}
 
     function CellComplex(cells::Dict{Int,Vector{T}},
-        boundaryMatrices::Dict{Int,SparseMatrixCSC{Int64,Int64}}) where T <: AbstractCell
+        boundaryMatrices::Dict{Int,SparseMatrixCSC{Int,Int}}) where T <: AbstractCell
         for k in keys(cells)
             if !issorted(cells[k])
                 sort!(cells[k])
@@ -73,7 +73,7 @@ cells(cplx::CellComplex) = getfield(cplx, :cells)
 boundaryMatrices(cplx::CellComplex) = getfield(cplx, :boundaryMatrices)
 
 function CellComplex(cells::Dict{Int,Vector{T}}) where T <: AbstractCell
-    return CellComplex(cells, Dict{Int,SparseMatrixCSC{Int64,Int64}}())
+    return CellComplex(cells, Dict{Int,SparseMatrixCSC{Int,Int}}())
 end
 
 """
