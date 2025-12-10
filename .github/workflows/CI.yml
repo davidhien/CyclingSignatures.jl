@@ -38,6 +38,11 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
+      - name: Add StepFunctions.jl
+        shell: julia --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.add("https://github.com/davidhien/StepFunctions.jl")
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
@@ -64,6 +69,7 @@ jobs:
         run: |
           using Pkg
           Pkg.develop(PackageSpec(path=pwd()))
+          Pkg.add("https://github.com/davidhien/StepFunctions.jl")
           Pkg.instantiate()
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-docdeploy@v1
