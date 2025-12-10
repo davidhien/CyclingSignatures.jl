@@ -64,15 +64,16 @@ jobs:
         with:
           version: '1'
       - uses: julia-actions/cache@v2
+      - name: Add StepFunctions.jl
+        shell: julia --project=. --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.add(url="https://github.com/davidhien/StepFunctions.jl")
       - name: Configure doc environment
         shell: julia --project=docs --color=yes {0}
         run: |
           using Pkg
           Pkg.develop(PackageSpec(path=pwd()))
-          dev_path = joinpath(DEPOT_PATH[1],"dev","CyclingSignatures.jl")
-          Pkg.activate(dev_path)
-          Pkg.add(url="https://github.com/davidhien/StepFunctions.jl")
-          Pkg.activate(joinpath(pwd(),"docs"))
           Pkg.instantiate()
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-docdeploy@v1
