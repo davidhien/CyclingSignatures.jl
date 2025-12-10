@@ -32,7 +32,7 @@ jobs:
           - x64
           - x86
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
@@ -46,7 +46,7 @@ jobs:
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v4
         with:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -59,7 +59,7 @@ jobs:
       contents: write
       statuses: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1'
@@ -68,8 +68,11 @@ jobs:
         shell: julia --project=docs --color=yes {0}
         run: |
           using Pkg
-          Pkg.add(url="https://github.com/davidhien/StepFunctions.jl")
           Pkg.develop(PackageSpec(path=pwd()))
+          dev_path = joinpath(DEPOT_PATH[1],"dev","CyclingSignatures.jl")
+          Pkg.activate(dev_path)
+          Pkg.add(url="https://github.com/davidhien/StepFunctions.jl")
+          Pkg.activate(joinpath(pwd(),"docs"))
           Pkg.instantiate()
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-docdeploy@v1
@@ -79,8 +82,6 @@ jobs:
       - name: Run doctests
         shell: julia --project=docs --color=yes {0}
         run: |
-          using Pkg
-          Pkg.add(url="StepFunctions.jl")
           using Documenter: DocMeta, doctest
           using CyclingSignatures
           DocMeta.setdocmeta!(CyclingSignatures, :DocTestSetup, :(using CyclingSignatures); recursive=true)
