@@ -39,7 +39,7 @@ jobs:
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
       - name: Add StepFunctions.jl
-        shell: julia --color=yes {0}
+        shell: julia --project=. --color=yes {0}
         run: |
           using Pkg
           Pkg.add(url="https://github.com/davidhien/StepFunctions.jl")
