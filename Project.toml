@@ -1,7 +1,7 @@
 name = "CyclingSignatures"
 uuid = "b750c39d-317b-4ed7-a266-e63a9df6ec54"
-authors = ["davidhien <david.hien@outlook.de> and contributors"]
 version = "0.3.0"
+authors = ["davidhien <david.hien@outlook.de> and contributors"]
 
 [deps]
 DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"
@@ -29,6 +29,7 @@ StatsPlots = "f3b207a7-027a-5e70-b257-86293d7955fd"
 PlotsPltExt = ["Plots", "StatsPlots"]
 
 [compat]
+MetaGraphs = "0.8"
 StatsPlots = "0.15.8"
 StepFunctions = "1.0.0"
 julia = "1.9"
