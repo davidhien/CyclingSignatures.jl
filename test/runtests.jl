@@ -10,4 +10,5 @@ using CyclingSignatures
     @safetestset "comparison-space" begin include("comparison-space.jl") end
     @safetestset "trajectory" begin include("trajectory.jl") end
     @safetestset "cycling-signature" begin include("cycling-signature.jl") end
+    @safetestset "sample-tools" begin include("sample-tools.jl") end
 end
