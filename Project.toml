@@ -30,6 +30,7 @@ PlotsPltExt = ["Plots", "StatsPlots"]
 MakiePltExt = ["Makie"]
 
 [compat]
+MetaGraphs = "0.9"
 DataInterpolations = "8"
 StatsPlots = "0.15.8"
 StepFunctions = "1.0.0"
