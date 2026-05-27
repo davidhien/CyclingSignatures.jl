@@ -54,7 +54,7 @@ include("lin-alg-util.jl")
 include("dynamic-distance.jl")
 include("trajectory.jl")
 include("cycling-signature.jl")
-include("CyclingSignatures/sample-tools.jl")
+include("sample-tools.jl")
 include("distance-matrix-persistence.jl")
 include("CyclingSignatures/interpolate-to-distance.jl")
 include("subsegment-experiments.jl")
@@ -66,6 +66,16 @@ export plot_rank_distribution,
        plot_rank_distribution_at_r,
        plot_subspace_frequency_at_r,
        plot_cycspace_inclusion
+export plot_cycspace_radius_frequency,
+       plot_cycspace_length_frequency
+export plot_rank_distribution!,
+       plot_rank_heatmap!,
+       plot_all_rank_heatmaps!,
+       plot_rank_distribution_at_r!,
+       plot_subspace_frequency_at_r!,
+       plot_cycspace_inclusion!
+export plot_cycspace_radius_frequency!,
+       plot_cycspace_length_frequency!
 
 include("dm-persistence-birth-curves.jl")
 export birth_curves, CyclingBirthCurve
