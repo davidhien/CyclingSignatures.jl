@@ -214,4 +214,154 @@ function CyclingSignatures.plot_cycspace_inclusion(V0, V1)
     return p
 end
 
+function CyclingSignatures.plot_cycspace_radius_frequency!(
+    plt,
+    results::RandomSubsegmentResult,
+    k;
+    r_max = nothing,
+    r_max_for_sorting = nothing,
+    n_subspaces = 10,
+    n_highlight = nothing,
+    filter_shorter_as = 0,
+    colorscheme = :viridis,
+    default_color = :gray60,
+    linewidth = 1,
+    legend = :topright,
+)
+    if r_max === nothing
+        r_max = results.flt_threshold
+    end
+
+    sig, fs = CyclingSignatures.cycspace_radius_frequency_functions(
+        results,
+        k;
+        r_max_for_sorting = r_max_for_sorting,
+        filter_shorter_as = filter_shorter_as,
+        max_n_sig = n_subspaces,
+    )
+    if isempty(sig)
+        return sig, plt
+    end
+
+    if n_highlight === nothing
+        n_highlight = min(length(sig), 6)
+    end
+    grad = Plots.cgrad(colorscheme, max(n_highlight, 1); categorical = true)
+
+    plot!(plt; xlabel = "thickening radius", ylabel = "#segments", legend = legend)
+    for i in eachindex(sig)
+        xs, ys = CyclingSignatures._step_post_xy(fs[i], r_max; x_start = 0.0)
+        c = (i <= n_highlight) ? grad[i] : default_color
+        lab = (i <= n_highlight) ? "V_$i" : ""
+        plot!(plt, xs, ys; seriestype = :steppost, color = c, linewidth = linewidth, label = lab)
+    end
+
+    return sig, plt
+end
+
+function CyclingSignatures.plot_cycspace_radius_frequency(
+    results::RandomSubsegmentResult,
+    k;
+    r_max = nothing,
+    r_max_for_sorting = nothing,
+    n_subspaces = 10,
+    n_highlight = nothing,
+    filter_shorter_as = 0,
+    colorscheme = :viridis,
+    default_color = :gray60,
+    linewidth = 1,
+    legend = :topright,
+)
+    plt = plot()
+    sig, _ = plot_cycspace_radius_frequency!(
+        plt,
+        results,
+        k;
+        r_max = r_max,
+        r_max_for_sorting = r_max_for_sorting,
+        n_subspaces = n_subspaces,
+        n_highlight = n_highlight,
+        filter_shorter_as = filter_shorter_as,
+        colorscheme = colorscheme,
+        default_color = default_color,
+        linewidth = linewidth,
+        legend = legend,
+    )
+    return sig, plt
+end
+
+function CyclingSignatures.plot_cycspace_length_frequency!(
+    plt,
+    results::RandomSubsegmentResult,
+    k;
+    n_subspaces = 10,
+    n_highlight = nothing,
+    sort_by_tp_with_rmax = nothing,
+    filter_shorter_than = 0,
+    filter_shorter_r_max = Inf,
+    colorscheme = :viridis,
+    default_color = :gray60,
+    markersize = 3,
+    legend = :topright,
+)
+    sig, M = CyclingSignatures.cycspace_length_interval_countmatrix(
+        results,
+        k;
+        n_subspaces = n_subspaces,
+        sort_by_tp_with_rmax = sort_by_tp_with_rmax,
+        filter_shorter_than = filter_shorter_than,
+        filter_shorter_r_max = filter_shorter_r_max,
+    )
+    if isempty(sig)
+        return sig, plt
+    end
+
+    if n_highlight === nothing
+        n_highlight = min(length(sig), 6)
+    end
+    grad = Plots.cgrad(colorscheme, max(n_highlight, 1); categorical = true)
+
+    segment_lengths = results.segment_lengths
+
+    plot!(plt; xlabel = "time span", ylabel = "#segments", legend = legend)
+    for i in 1:size(M, 1)
+        c = (i <= n_highlight) ? grad[i] : default_color
+        lab = (i <= n_highlight) ? "V_$i" : ""
+        scatter!(plt, segment_lengths, vec(M[i, :]); color = c, markersize = markersize, label = lab)
+    end
+
+    return sig, plt
+end
+
+function CyclingSignatures.plot_cycspace_length_frequency(
+    results::RandomSubsegmentResult,
+    k;
+    n_subspaces = 10,
+    n_highlight = nothing,
+    sort_by_tp_with_rmax = nothing,
+    filter_shorter_than = 0,
+    filter_shorter_r_max = Inf,
+    colorscheme = :viridis,
+    default_color = :gray60,
+    markersize = 3,
+    legend = :topright,
+)
+    plt = plot()
+    sig, _ = plot_cycspace_length_frequency!(
+        plt,
+        results,
+        k;
+        n_subspaces = n_subspaces,
+        n_highlight = n_highlight,
+        sort_by_tp_with_rmax = sort_by_tp_with_rmax,
+        filter_shorter_than = filter_shorter_than,
+        filter_shorter_r_max = filter_shorter_r_max,
+        colorscheme = colorscheme,
+        default_color = default_color,
+        markersize = markersize,
+        legend = legend,
+    )
+    return sig, plt
+end
+
 end
