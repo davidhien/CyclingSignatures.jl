@@ -31,6 +31,7 @@ MakiePltExt = ["Makie"]
 
 [compat]
 DataInterpolations = "8"
+DataStructures = "0.19"
 Distances = "0.10"
 Graphs = "1"
 IterativeSolvers = "0.9"
