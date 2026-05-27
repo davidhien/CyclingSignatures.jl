@@ -30,14 +30,14 @@ PlotsPltExt = ["Plots", "StatsPlots"]
 MakiePltExt = ["Makie"]
 
 [compat]
-IterativeSolvers = "0.9"
-MetaGraphs = "0.8"
-StatsBase = "0.34"
-SimpleWeightedGraphs = "1"
-Distances = "0.10"
-Plots = "1"
-MetaGraphs = "0.9"
 DataInterpolations = "8"
+Distances = "0.10"
+Graphs = "1"
+IterativeSolvers = "0.9"
+MetaGraphs = "0.9"
+Plots = "1"
+SimpleWeightedGraphs = "1"
+StatsBase = "0.34"
 StatsPlots = "0.15.8"
 StepFunctions = "1.0.0"
 julia = "1.9"
