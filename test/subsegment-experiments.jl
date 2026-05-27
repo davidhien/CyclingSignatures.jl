@@ -8,6 +8,28 @@ using CyclingSignatures: sample_segment_starts
 
 include("test-util.jl")
 
+function synthetic_cycspace_distribution_result()
+    F = FF{2}
+    e1 = reshape(F.([1, 0]), 2, 1)
+    e2 = reshape(F.([0, 1]), 2, 1)
+    zero_sig = CyclingSignature(zeros(F, 2, 0), Float64[])
+
+    signatures = [
+        CyclingSignature[CyclingSignature(e1, [0.2]), CyclingSignature(e2, [0.3])],
+        CyclingSignature[CyclingSignature(e1, [0.1]), CyclingSignature(e1, [0.6])],
+        CyclingSignature[CyclingSignature(e1, [0.4]), zero_sig],
+    ]
+
+    return RandomSubsegmentResult(
+        nothing,
+        [10, 20, 20],
+        2,
+        [[1, 2], [1, 2], [1, 2]],
+        1.0,
+        signatures,
+    )
+end
+
 @testset "test helper methods" begin
     @testset "sample_segment_starts" begin
     rng1 = MersenneTwister(1234)
@@ -163,28 +185,28 @@ end
     @test cs_dist[3](0) == 0 && cs_dist[3](0.4) == 5
 
     # cycspace_total_distribution and cycspace_total_distributions
-    cs_total = cycspace_total_distribution(result, [1][:,:])
+    cs_total = CyclingSignatures.cycspace_total_distribution(result, [1][:,:])
     @test cs_total(0) == 0
     @test cs_total(0.7) == 10
 
-    sig_total, fs_total = cycspace_total_distributions(result, 1; n_subspaces = 1)
+    sig_total, fs_total = CyclingSignatures.cycspace_total_distributions(result, 1; n_subspaces = 1)
     @test length(sig_total) == 1
     @test length(fs_total) == 1
     @test fs_total[1](0.7) == 10
 
-    sig_rf, fs_rf = cycspace_radius_frequency_functions(result, 1; max_n_sig = 1)
+    sig_rf, fs_rf = CyclingSignatures.cycspace_radius_frequency_functions(result, 1; max_n_sig = 1)
     @test length(sig_rf) == 1
     @test length(fs_rf) == 1
     @test fs_rf[1](0.7) == 10
 
-    sig_len, M_len = cycspace_length_interval_countmatrix(result, 1; n_subspaces = 1)
+    sig_len, M_len = CyclingSignatures.cycspace_length_interval_countmatrix(result, 1; n_subspaces = 1)
     @test length(sig_len) == 1
     @test size(M_len) == (1, 3)
     @test M_len[1, 1] == 0
     @test M_len[1, 2] == 5
     @test M_len[1, 3] == 5
 
-    sig_len_f, M_len_f = cycspace_length_interval_countmatrix(
+    sig_len_f, M_len_f = CyclingSignatures.cycspace_length_interval_countmatrix(
         result,
         1;
         n_subspaces = 1,
@@ -193,9 +215,24 @@ end
     )
     @test length(sig_len_f) == 1
     @test size(M_len_f) == (1, 3)
-    @test all(M_len_f .== 0)
+    @test M_len_f == [0 5 5]
 
     # cycspace_radius_distribution and cycspace_timespan_distribution
+
+    # signature_time_spans
+    spans = signature_time_spans(result, [1][:,:])
+    @test isempty(spans[1])
+    @test spans[2] == [start:start + segment_lengths[2] - 1 for start in result.segment_starts[2]]
+    @test spans[3] == [start:start + segment_lengths[3] - 1 for start in result.segment_starts[3]]
+
+    # signature_segments
+    traj = get_trajectory(result.trajectory_space)
+    sig_segments = signature_segments(result, [1][:,:])
+    @test isempty(sig_segments[1])
+    @test length(sig_segments[2]) == length(spans[2])
+    @test length(sig_segments[3]) == length(spans[3])
+    @test sig_segments[2] == [evaluate_interval(traj, first(span), last(span)) for span in spans[2]]
+    @test sig_segments[3] == [evaluate_interval(traj, first(span), last(span)) for span in spans[3]]
 
     # cycspace_segments
     segs = cycspace_segments(result, [1][:,:])
@@ -210,4 +247,74 @@ end
     @test isempty(segs_r[1])  # no rank 1 cycles for length 10 segments
     @test length(segs[2]) == 5
     @test all(length.(segs[2]) .== 20)
+end
+
+@testset "cycspace distribution heatmap data" begin
+    result = synthetic_cycspace_distribution_result()
+    F = FF{2}
+    V = reshape(F.([1, 0]), 2, 1)
+
+    segment_spans, radii, Z = CyclingSignatures._cycspace_distribution_heatmap_data(
+        result,
+        V;
+        r_max = 1.0,
+        radius_bins = 4,
+    )
+
+    @test segment_spans == [10, 20]
+    @test radii ≈ [0.125, 0.375, 0.625, 0.875]
+    @test Z == [
+        0 1
+        1 1
+        1 3
+        1 3
+    ]
+
+    default_spans, default_radii, default_Z = CyclingSignatures._cycspace_distribution_heatmap_data(
+        result,
+        V,
+    )
+
+    @test default_spans == [10, 20]
+    @test default_radii ≈ [0.25, 0.75]
+    @test default_Z == [
+        1 1
+        1 3
+    ]
+end
+
+@testset "cycspace level intervals" begin
+    f = StepFunction([0.2, 0.5, 0.7, 1.0], 0.0, [1.0, 0.0, 2.0, 0.0])
+    g = StepFunction([0.3], 0.0, [1.0])
+
+    geq_intervals = cycspace_level_intervals([f], 1.0; relation = :geq, r_max = 1.2)
+    @test geq_intervals == [[(0.2, 0.5), (0.7, 1.0)]]
+
+    leq_intervals = cycspace_level_intervals([f], 0.5; relation = :leq, r_max = 1.2)
+    @test leq_intervals == [[(0.0, 0.2), (0.5, 0.7), (1.0, 1.2)]]
+
+    clipped = cycspace_level_intervals([f], 1.0; relation = :geq, r_min = 0.25, r_max = 0.85)
+    @test clipped == [[(0.25, 0.5), (0.7, 0.85)]]
+
+    none = cycspace_level_intervals([f], 3.0; relation = :geq, r_max = 1.2)
+    @test none == [Tuple{Float64,Float64}[]]
+
+    many = cycspace_level_intervals([f, g], 1.0; relation = :geq, r_max = 1.0)
+    @test length(many) == 2
+    @test many[2] == [(0.3, 1.0)]
+
+    @test_throws ArgumentError cycspace_level_intervals([f], 1.0; relation = :strict, r_max = 1.0)
+
+    result = synthetic_cycspace_distribution_result()
+    F = FF{2}
+    V = reshape(F.([1, 0]), 2, 1)
+    delegated = cycspace_level_intervals(result, V, 2.0; relation = :geq)
+    manual = cycspace_level_intervals(
+        cycspace_distribution(result, V),
+        2.0;
+        relation = :geq,
+        r_max = result.flt_threshold,
+    )
+    @test delegated == manual
+    @test delegated == [Tuple{Float64,Float64}[], [(0.6, 1.0)], Tuple{Float64,Float64}[]]
 end

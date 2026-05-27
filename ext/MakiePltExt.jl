@@ -10,6 +10,66 @@ function _categorical_colorscheme(colorscheme, n::Integer)
     return Makie.cgrad(colorscheme, n; categorical = true)
 end
 
+_level_contour_levels(levels::Number) = [levels]
+_level_contour_levels(levels) = collect(levels)
+
+function _check_level_contour_mode(mode::Symbol)
+    mode in (:boundaries, :bands) ||
+        throw(ArgumentError("mode must be :boundaries or :bands. Got $mode."))
+    return mode
+end
+
+function _check_level_contour_x_mode(x_mode::Symbol)
+    x_mode == :raw || throw(ArgumentError("x_mode currently supports only :raw. Got $x_mode."))
+    return x_mode
+end
+
+function _level_contour_label(label_prefix, level)
+    prefix = string(label_prefix)
+    return isempty(prefix) ? "level = $level" : "$prefix, level = $level"
+end
+
+function _level_contour_axis(gp)
+    if gp isa Axis
+        return gp
+    elseif gp isa Figure
+        pos = gp[1, 1]
+        ax_index = findfirst(x -> x isa Axis, contents(pos))
+        return ax_index === nothing ? Axis(pos; xlabel = "segment time span", ylabel = "radius") :
+               contents(pos)[ax_index]
+    else
+        return Axis(gp; xlabel = "segment time span", ylabel = "radius")
+    end
+end
+
+function _boundary_xy(segment_lengths, intervals, interval_index, boundary_index)
+    xs = Float64[]
+    ys = Float64[]
+    last_x = nothing
+
+    for i in eachindex(segment_lengths)
+        if length(intervals[i]) >= interval_index
+            x = Float64(segment_lengths[i])
+            y = intervals[i][interval_index][boundary_index]
+            if last_x !== nothing && x <= last_x
+                push!(xs, NaN)
+                push!(ys, NaN)
+            end
+            push!(xs, x)
+            push!(ys, y)
+            last_x = x
+        else
+            if !isempty(xs) && !isnan(xs[end])
+                push!(xs, NaN)
+                push!(ys, NaN)
+            end
+            last_x = nothing
+        end
+    end
+
+    return xs, ys
+end
+
 function _rank_heatmap_data(results, rank; r_max, r_subdivisions)
     segment_lengths = results.segment_lengths
     radii = range(0, r_max; length = r_subdivisions)
@@ -501,6 +561,51 @@ function CyclingSignatures.plot_cycspace_radius_frequency(
     return sig, fig
 end
 
+function CyclingSignatures.plot_cycspace_distribution!(
+    gp,
+    results::RandomSubsegmentResult,
+    cycling_space;
+    r_max = nothing,
+    radius_bins = nothing,
+    colormap = :viridis,
+)
+    segment_spans, radii, Z = CyclingSignatures._cycspace_distribution_heatmap_data(
+        results,
+        cycling_space;
+        r_max = r_max,
+        radius_bins = radius_bins,
+    )
+
+    ax = Axis(
+        gp;
+        xlabel = "segment time span",
+        ylabel = "radius",
+        title = "Cycling space distribution",
+    )
+    hm = heatmap!(ax, segment_spans, radii, Z'; colormap = colormap)
+    return ax, hm
+end
+
+function CyclingSignatures.plot_cycspace_distribution(
+    results::RandomSubsegmentResult,
+    cycling_space;
+    r_max = nothing,
+    radius_bins = nothing,
+    colormap = :viridis,
+)
+    fig = Figure()
+    _, hm = plot_cycspace_distribution!(
+        fig[1, 1],
+        results,
+        cycling_space;
+        r_max = r_max,
+        radius_bins = radius_bins,
+        colormap = colormap,
+    )
+    Colorbar(fig[1, 2], hm; label = "Count")
+    return fig
+end
+
 function CyclingSignatures.plot_cycspace_length_frequency!(
     gp,
     results::RandomSubsegmentResult,
@@ -596,6 +701,143 @@ function CyclingSignatures.plot_cycspace_length_frequency(
         legend_position = legend_position,
     )
     return sig, fig
+end
+
+function CyclingSignatures.plot_cycspace_level_contours!(
+    gp,
+    results::RandomSubsegmentResult,
+    cycling_space,
+    levels;
+    relation = :geq,
+    r_min = 0.0,
+    r_max = nothing,
+    mode = :boundaries,
+    x_mode = :raw,
+    label_prefix = "",
+    colorscheme = :viridis,
+    color = nothing,
+    linewidth = 2,
+    linestyle = :solid,
+    legend = true,
+    legend_position = :rt,
+    kwargs...,
+)
+    _check_level_contour_mode(mode)
+    _check_level_contour_x_mode(x_mode)
+    if r_max === nothing
+        r_max = results.flt_threshold
+    end
+
+    level_vec = _level_contour_levels(levels)
+    colors = _categorical_colorscheme(colorscheme, length(level_vec))
+    segment_lengths = results.segment_lengths
+    ax = _level_contour_axis(gp)
+
+    plots = Any[]
+    any_labeled = false
+    for (level_index, level) in enumerate(level_vec)
+        intervals = CyclingSignatures.cycspace_level_intervals(
+            results,
+            cycling_space,
+            level;
+            relation = relation,
+            r_min = r_min,
+            r_max = r_max,
+        )
+        isempty(intervals) && continue
+
+        c = color === nothing ? colors[level_index] : color
+        level_label = _level_contour_label(label_prefix, level)
+        labeled = false
+
+        if mode == :boundaries
+            max_intervals = maximum(length, intervals; init = 0)
+            for interval_index in 1:max_intervals
+                for boundary_index in 1:2
+                    xs, ys = _boundary_xy(segment_lengths, intervals, interval_index, boundary_index)
+                    any(isfinite, ys) || continue
+                    lab = labeled ? "" : level_label
+                    p = lines!(
+                        ax,
+                        xs,
+                        ys;
+                        color = c,
+                        linewidth = linewidth,
+                        linestyle = linestyle,
+                        label = lab,
+                        kwargs...,
+                    )
+                    push!(plots, p)
+                    labeled = true
+                    any_labeled = true
+                end
+            end
+        elseif mode == :bands
+            for i in eachindex(segment_lengths)
+                x = Float64(segment_lengths[i])
+                for (a, b) in intervals[i]
+                    lab = labeled ? "" : level_label
+                    p = lines!(
+                        ax,
+                        [x, x],
+                        [a, b];
+                        color = c,
+                        linewidth = linewidth,
+                        linestyle = linestyle,
+                        label = lab,
+                        kwargs...,
+                    )
+                    push!(plots, p)
+                    labeled = true
+                    any_labeled = true
+                end
+            end
+        end
+    end
+
+    leg = (legend && any_labeled) ? axislegend(ax; position = legend_position) : nothing
+    return ax, plots, leg
+end
+
+function CyclingSignatures.plot_cycspace_level_contours(
+    results::RandomSubsegmentResult,
+    cycling_space,
+    levels;
+    relation = :geq,
+    r_min = 0.0,
+    r_max = nothing,
+    mode = :boundaries,
+    x_mode = :raw,
+    label_prefix = "",
+    colorscheme = :viridis,
+    color = nothing,
+    linewidth = 2,
+    linestyle = :solid,
+    legend = true,
+    legend_position = :rt,
+    kwargs...,
+)
+    fig = Figure()
+    plot_cycspace_level_contours!(
+        fig[1, 1],
+        results,
+        cycling_space,
+        levels;
+        relation = relation,
+        r_min = r_min,
+        r_max = r_max,
+        mode = mode,
+        x_mode = x_mode,
+        label_prefix = label_prefix,
+        colorscheme = colorscheme,
+        color = color,
+        linewidth = linewidth,
+        linestyle = linestyle,
+        legend = legend,
+        legend_position = legend_position,
+        kwargs...,
+    )
+    return fig
 end
 
 end

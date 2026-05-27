@@ -26,11 +26,13 @@ export DynamicDistance
 # subsegment-experiments.jl
 export RandomSubsegmentExperiment, get_trajectory_space, get_segment_lengths, get_n_experiments
 export RandomSubsegmentResult, run_experiment, sample_segment_starts
-export rank_distribution, cycspace_intervals, cycspace_distribution
+export rank_distribution, cycspace_intervals, cycspace_distribution, cycspace_level_intervals
 export cycspace_length_count, cycspace_length_countmatrix, cycspace_length_count_at_r, cycspace_length_countmatrix_at_r
+export signature_time_spans, signature_segments
 export cycspace_segments, cycspace_segments_at_r
 export cycspace_inclusion_matrix
 
+import Base: size, axes, IndexStyle, getindex
 import Base: get, show
 import Distances.result_type
 using Distances: PreMetric, Metric, pairwise, chebyshev, euclidean
@@ -49,6 +51,7 @@ include("H1Cohomology/ATTools.jl")
 using .ATTools
 
 include("ff.jl")
+include("point-identification-distance-matrix.jl")
 include("comparison-space.jl")
 include("lin-alg-util.jl")
 include("dynamic-distance.jl")
@@ -67,7 +70,9 @@ export plot_rank_distribution,
        plot_subspace_frequency_at_r,
        plot_cycspace_inclusion
 export plot_cycspace_radius_frequency,
-       plot_cycspace_length_frequency
+       plot_cycspace_distribution,
+       plot_cycspace_length_frequency,
+       plot_cycspace_level_contours
 export plot_rank_distribution!,
        plot_rank_heatmap!,
        plot_all_rank_heatmaps!,
@@ -75,7 +80,9 @@ export plot_rank_distribution!,
        plot_subspace_frequency_at_r!,
        plot_cycspace_inclusion!
 export plot_cycspace_radius_frequency!,
-       plot_cycspace_length_frequency!
+       plot_cycspace_distribution!,
+       plot_cycspace_length_frequency!,
+       plot_cycspace_level_contours!
 
 include("dm-persistence-birth-curves.jl")
 export birth_curves, CyclingBirthCurve

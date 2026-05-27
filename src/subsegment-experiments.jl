@@ -186,7 +186,7 @@ function cycspace_intervals(result::RandomSubsegmentResult, V)
 
     for i in eachindex(sig_vecs)
         sigs = sig_vecs[i]
-        int[i] = Tuple{Int,Int}[]
+        int[i] = Tuple{Float64,Float64}[]
         for sig in sigs
             if length(sig.birth_vector) >= k && colspace_normal_form(sig.cycling_matrix[:, 1:k]) == V
                 p1, p2 = dimension_interval(sig, k)
@@ -209,6 +209,106 @@ function cycspace_distribution(result::RandomSubsegmentResult, V)
     end
 end
 
+function _level_predicate(relation::Symbol)
+    if relation == :geq
+        return >=
+    elseif relation == :leq
+        return <=
+    end
+    throw(ArgumentError("relation must be :geq or :leq. Got $relation."))
+end
+
+function _level_intervals(
+    f::StepFunction,
+    level,
+    predicate,
+    r_min,
+    r_max,
+)::Vector{Tuple{Float64,Float64}}
+    lo = Float64(r_min)
+    hi = Float64(r_max)
+    lo <= hi || throw(ArgumentError("r_min must be <= r_max. Got $lo and $hi."))
+
+    if lo == hi
+        return predicate(f(lo), level) ? [(lo, hi)] : Tuple{Float64,Float64}[]
+    end
+
+    breakpoints = Float64[lo]
+    for x in f.xs
+        xx = Float64(x)
+        if isfinite(xx) && xx > lo && xx < hi
+            push!(breakpoints, xx)
+        end
+    end
+    push!(breakpoints, hi)
+
+    intervals = Tuple{Float64,Float64}[]
+    open_start = nothing
+    for i in 1:(length(breakpoints) - 1)
+        a = breakpoints[i]
+        b = breakpoints[i + 1]
+        if predicate(f(a), level)
+            if open_start === nothing
+                open_start = a
+            end
+        elseif open_start !== nothing
+            push!(intervals, (open_start, a))
+            open_start = nothing
+        end
+
+        if i == length(breakpoints) - 1 && open_start !== nothing
+            push!(intervals, (open_start, b))
+        end
+    end
+
+    return intervals
+end
+
+"""
+    cycspace_level_intervals(fs::AbstractVector{<:StepFunction}, level;
+        relation=:geq, r_min=0.0, r_max=Inf)
+
+Return one vector of radius intervals for each step function in `fs`. With `relation=:geq`,
+intervals are the radii where `f(r) >= level`; with `relation=:leq`, intervals are the radii
+where `f(r) <= level`. Intervals are clipped to `[r_min, r_max]`.
+"""
+function cycspace_level_intervals(
+    fs::AbstractVector{<:StepFunction},
+    level;
+    relation::Symbol = :geq,
+    r_min = 0.0,
+    r_max = Inf,
+)
+    predicate = _level_predicate(relation)
+    return Vector{Vector{Tuple{Float64,Float64}}}(
+        [_level_intervals(f, level, predicate, r_min, r_max) for f in fs],
+    )
+end
+
+"""
+    cycspace_level_intervals(result::RandomSubsegmentResult, V, level;
+        relation=:geq, r_min=0.0, r_max=result.flt_threshold)
+
+Compute `cycspace_distribution(result, V)` and return the radius intervals where each segment
+length entry satisfies the requested level relation.
+"""
+function cycspace_level_intervals(
+    result::RandomSubsegmentResult,
+    V,
+    level;
+    relation::Symbol = :geq,
+    r_min = 0.0,
+    r_max = result.flt_threshold,
+)
+    return cycspace_level_intervals(
+        cycspace_distribution(result, V),
+        level;
+        relation = relation,
+        r_min = r_min,
+        r_max = r_max,
+    )
+end
+
 function cycspace_radius_distribution(result::RandomSubsegmentResult, V)
     return sum.(cycspace_distribution(result::RandomSubsegmentResult, V))
 end
@@ -222,6 +322,63 @@ end
 function cycspace_timespan_count(result::RandomSubsegmentResult, V)
     int_vec = cycspace_intervals(result, V)
     return length.(int_vec)
+end
+
+function _heatmap_bin_centers(x_min::Real, x_max::Real, n_bins::Integer)
+    n_bins > 0 || throw(ArgumentError("n_bins must be positive. Got $n_bins."))
+
+    x0 = Float64(x_min)
+    x1 = Float64(x_max)
+    x0 <= x1 || throw(ArgumentError("x_min must be <= x_max. Got $x0 and $x1."))
+
+    if isapprox(x0, x1)
+        return fill(x0, n_bins)
+    end
+
+    edges = range(x0, x1; length = n_bins + 1)
+    return collect(@. (edges[1:end-1] + edges[2:end]) / 2)
+end
+
+"""
+    _cycspace_distribution_heatmap_data(result::RandomSubsegmentResult, V;
+        r_max=nothing, radius_bins=nothing)
+
+Return `(segment_spans, radii, Z)` for the heatmap used by `plot_cycspace_distribution`.
+`segment_spans` are the distinct segment lengths in their first-occurrence order. `radii`
+contains the centers of `radius_bins` equally spaced bins over `[0, r_max]`. `Z[i, j]` is the
+number of segments with time span `segment_spans[j]` whose cycling-space step function for `V`
+is active at `radii[i]`. Repeated entries in `result.segment_lengths` are aggregated into the
+same column.
+"""
+function _cycspace_distribution_heatmap_data(
+    result::RandomSubsegmentResult,
+    V;
+    r_max = nothing,
+    radius_bins = nothing,
+)
+    if r_max === nothing
+        r_max = result.flt_threshold
+    end
+    if radius_bins === nothing
+        radius_bins = length(unique(result.segment_lengths))
+    end
+
+    segment_spans = unique(result.segment_lengths)
+    radii = _heatmap_bin_centers(0.0, r_max, radius_bins)
+    dists = cycspace_distribution(result, V)
+
+    span_to_idx = Dict(span => i for (i, span) in enumerate(segment_spans))
+    Z = zeros(Int, length(radii), length(segment_spans))
+
+    for (seg_idx, span) in enumerate(result.segment_lengths)
+        col_idx = span_to_idx[span]
+        f = dists[seg_idx]
+        for (row_idx, r) in enumerate(radii)
+            Z[row_idx, col_idx] += Int(f(r))
+        end
+    end
+
+    return segment_spans, radii, Z
 end
 
 function _cycspace_interval_dict(result::RandomSubsegmentResult, k)
@@ -403,12 +560,7 @@ function _step_post_xy(f::StepFunction, x_stop::Real; x_start::Real = 0.0)
     return xs, ys
 end
 
-"""
-    cycspace_segments(result::RandomSubsegmentResult, V)
-
-Get the segments from the result that generate the cycling space V for some radius.
-"""
-function cycspace_segments(result::RandomSubsegmentResult, V)
+function _signature_start_indices(result::RandomSubsegmentResult, V)
     sig_vecs = result.signatures
     seg_starts = result.segment_starts
     k = size(V, 2)
@@ -420,13 +572,52 @@ function cycspace_segments(result::RandomSubsegmentResult, V)
         end
     end
 
-    seg_start_vecs = map(zip(seg_starts, bool_vecs)) do (starts, bools)
-        return [starts[i] for i in eachindex(bools) if bools[i]]
+    return map(zip(seg_starts, bool_vecs)) do (starts, bools)
+        [starts[i] for i in eachindex(bools) if bools[i]]
     end
+end
 
-    return map(zip(seg_start_vecs, result.segment_lengths)) do (starts, l)
-        return [starts[i]:starts[i]+l-1 for i in eachindex(starts)]
+function _segment_span(start::Integer, len::Integer)
+    return start:start + len - 1
+end
+
+"""
+    signature_time_spans(result::RandomSubsegmentResult, V)
+
+Return the time spans of all sampled segments whose cycling signature has the same column space as
+`V`. The outer vector matches `result.segment_lengths`; each entry contains the matching sampled
+time spans for that segment length.
+"""
+function signature_time_spans(result::RandomSubsegmentResult, V)
+    seg_start_vecs = _signature_start_indices(result, V)
+    return map(zip(seg_start_vecs, result.segment_lengths)) do (starts, len)
+        [_segment_span(start, len) for start in starts]
     end
+end
+
+"""
+    signature_segments(result::RandomSubsegmentResult, V)
+
+Return the sampled trajectory segments whose cycling signature has the same column space as `V`.
+The outer vector matches `result.segment_lengths`; each entry contains the extracted segments for
+that segment length, as returned by `evaluate_interval`.
+"""
+function signature_segments(result::RandomSubsegmentResult, V)
+    traj = get_trajectory(result.trajectory_space)
+    spans = signature_time_spans(result, V)
+
+    return map(spans) do cur_spans
+        [evaluate_interval(traj, first(span), last(span)) for span in cur_spans]
+    end
+end
+
+"""
+    cycspace_segments(result::RandomSubsegmentResult, V)
+
+Get the segments from the result that generate the cycling space V for some radius.
+"""
+function cycspace_segments(result::RandomSubsegmentResult, V)
+    return signature_time_spans(result, V)
 end
 
 """
@@ -435,24 +626,8 @@ end
 Get the segments from the result have cycling space V at radius r.
 """
 function cycspace_segments_at_r(result::RandomSubsegmentResult, V, r)
-    sig_vecs = result.signatures
-    seg_starts = result.segment_starts
-    k = size(V, 2)
-    V = colspace_normal_form(V)
-
-    bool_vecs = map(sig_vecs) do sigs
-        map(sigs) do sig
-            return length(sig.birth_vector) >= k && colspace_normal_form(sig.cycling_matrix[:, 1:k]) == V
-        end
-    end
-
-    seg_start_vecs = map(zip(seg_starts, bool_vecs)) do (starts, bools)
-        return [starts[i] for i in eachindex(bools) if bools[i]]
-    end
-
-    return map(zip(seg_start_vecs, result.segment_lengths)) do (starts, l)
-        return [starts[i]:starts[i]+l-1 for i in eachindex(starts)]
-    end
+    # TODO: use `r` to filter by active radii once the semantics of this API are clarified.
+    return signature_time_spans(result, V)
 end
 
 """

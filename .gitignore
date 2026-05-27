@@ -7,3 +7,5 @@
 /docs/Manifest.toml
 /docs/build/
 /test/Manifest.toml
+/.home/
+/.julia_depot/
