@@ -22,16 +22,14 @@ These can be related using higher dimensional cycling signatures.
 
 ## Installation
 
-Install the package by first adding `StepFunctions.jl` and then `CyclingSignatures.jl`
+Install the package via
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/davidhien/StepFunctions.jl")
 Pkg.add(url="https://github.com/davidhien/CyclingSignatures.jl")
 
 ```
-
-Then load it via
+and load it via
 ```julia
 using CyclingSignatures
 ```
