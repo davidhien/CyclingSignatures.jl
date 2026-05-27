@@ -9,13 +9,15 @@ export H1, betti_1, circularCoordinates
 
 export vr_incremental
 
-import Base: hash, ==
+import Base: ==, hash
 import SparseArrays: SparseMatrixCSC
-using LinearAlgebra
-using SparseArrays
+
 using DataStructures
-using Graphs, MetaGraphs
-using Distances: pairwise, chebyshev
+using Distances: chebyshev, pairwise
+using Graphs
+using LinearAlgebra
+using MetaGraphs
+using SparseArrays
 
 include("ChainComplex.jl")
 include("AbstractCell.jl")
