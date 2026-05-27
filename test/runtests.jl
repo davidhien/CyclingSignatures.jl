@@ -11,4 +11,6 @@ using CyclingSignatures
     @safetestset "trajectory" begin include("trajectory.jl") end
     @safetestset "cycling-signature" begin include("cycling-signature.jl") end
     @safetestset "sample-tools" begin include("sample-tools.jl") end
+    @safetestset "subsegment-experiments" begin include("subsegment-experiments.jl") end
+    @safetestset "plotting-interface" begin include("plotting-interface.jl") end
 end
