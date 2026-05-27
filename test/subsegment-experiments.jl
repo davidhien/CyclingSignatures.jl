@@ -162,6 +162,39 @@ end
     @test cs_dist[2](0) == 0 && cs_dist[2](0.7) == 5
     @test cs_dist[3](0) == 0 && cs_dist[3](0.4) == 5
 
+    # cycspace_total_distribution and cycspace_total_distributions
+    cs_total = cycspace_total_distribution(result, [1][:,:])
+    @test cs_total(0) == 0
+    @test cs_total(0.7) == 10
+
+    sig_total, fs_total = cycspace_total_distributions(result, 1; n_subspaces = 1)
+    @test length(sig_total) == 1
+    @test length(fs_total) == 1
+    @test fs_total[1](0.7) == 10
+
+    sig_rf, fs_rf = cycspace_radius_frequency_functions(result, 1; max_n_sig = 1)
+    @test length(sig_rf) == 1
+    @test length(fs_rf) == 1
+    @test fs_rf[1](0.7) == 10
+
+    sig_len, M_len = cycspace_length_interval_countmatrix(result, 1; n_subspaces = 1)
+    @test length(sig_len) == 1
+    @test size(M_len) == (1, 3)
+    @test M_len[1, 1] == 0
+    @test M_len[1, 2] == 5
+    @test M_len[1, 3] == 5
+
+    sig_len_f, M_len_f = cycspace_length_interval_countmatrix(
+        result,
+        1;
+        n_subspaces = 1,
+        filter_shorter_than = 0.2,
+        filter_shorter_r_max = 0.8,
+    )
+    @test length(sig_len_f) == 1
+    @test size(M_len_f) == (1, 3)
+    @test all(M_len_f .== 0)
+
     # cycspace_radius_distribution and cycspace_timespan_distribution
 
     # cycspace_segments
