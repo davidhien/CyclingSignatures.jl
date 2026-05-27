@@ -126,7 +126,10 @@ end
 
 function cycspace_length_countmatrix(result::RandomSubsegmentResult, k; n_subspaces=nothing)
     ct_dict = cycspace_length_count(result::RandomSubsegmentResult, k)
-    return lenght_countdict_to_countmatrix(ct_dict; n_relevant=n_subspaces)
+    if isempty(ct_dict)
+        return Matrix{Int}[], zeros(Int, 0, length(result.segment_lengths))
+    end
+    return lenght_countdict_to_countmatrix(ct_dict; n_relevant = n_subspaces)
 end
 
 function cycspace_length_count_at_r(result::RandomSubsegmentResult, k, r)
@@ -148,7 +151,10 @@ end
 
 function cycspace_length_countmatrix_at_r(result::RandomSubsegmentResult, k, r; n_subspaces=nothing)
     ct_dict = cycspace_length_count_at_r(result, k, r)
-    return lenght_countdict_to_countmatrix(ct_dict; n_relevant=n_subspaces)
+    if isempty(ct_dict)
+        return Matrix{Int}[], zeros(Int, 0, length(result.segment_lengths))
+    end
+    return lenght_countdict_to_countmatrix(ct_dict; n_relevant = n_subspaces)
 end
 
 """
@@ -216,6 +222,185 @@ end
 function cycspace_timespan_count(result::RandomSubsegmentResult, V)
     int_vec = cycspace_intervals(result, V)
     return length.(int_vec)
+end
+
+function _cycspace_interval_dict(result::RandomSubsegmentResult, k)
+    int_dict = Dict{Matrix{Int},Vector{Tuple{Float64,Float64}}}()
+    for sigs in result.signatures
+        for sig in sigs
+            if length(sig.birth_vector) >= k
+                V = Int.(colspace_normal_form(sig.cycling_matrix[:, 1:k]))
+                p1, p2 = dimension_interval(sig, k)
+                if p1 <= p2
+                    push!(get!(int_dict, V, Tuple{Float64,Float64}[]), (Float64(p1), Float64(p2)))
+                end
+            end
+        end
+    end
+    return int_dict
+end
+
+function _cycspace_total_persistence(int_vec::Vector{Tuple{Float64,Float64}}, y_max::Real)
+    y = Float64(y_max)
+    return sum(int_vec, init = 0.0) do (p1, p2)
+        return max(0.0, min(p2, y) - p1)
+    end
+end
+
+"""
+    cycspace_radius_frequency_functions(result::RandomSubsegmentResult, k;
+        r_max_for_sorting=nothing, filter_shorter_as=0, max_n_sig=nothing)
+
+Return `(sig, fs)` where `sig` are `k`-dimensional cycling subspaces ordered as in the old
+`allSignatureRadiusFunctions` pipeline and `fs[i]` is the total radius-frequency step function
+for `sig[i]` (summed over all segment lengths).
+"""
+function cycspace_radius_frequency_functions(
+    result::RandomSubsegmentResult,
+    k;
+    r_max_for_sorting = nothing,
+    filter_shorter_as = 0,
+    max_n_sig = nothing,
+)
+    int_dict = _cycspace_interval_dict(result, k)
+    keys_vec = collect(keys(int_dict))
+
+    if r_max_for_sorting !== nothing
+        scores = map(keys_vec) do V
+            _cycspace_total_persistence(int_dict[V], r_max_for_sorting)
+        end
+        p = sortperm(scores, rev = true)
+        keys_vec = keys_vec[p]
+    else
+        counts = map(V -> length(int_dict[V]), keys_vec)
+        p = sortperm(counts, rev = true)
+        keys_vec = keys_vec[p]
+    end
+
+    if max_n_sig !== nothing
+        keys_vec = keys_vec[1:min(length(keys_vec), max_n_sig)]
+    end
+
+    fs = map(keys_vec) do V
+        int_vec = int_dict[V]
+        if filter_shorter_as > 0
+            int_vec = filter(t -> t[2] - t[1] >= filter_shorter_as, int_vec)
+        end
+        return sum(int_vec, init = indicator_function(1, 0)) do (p1, p2)
+            indicator_function(p1, p2, 1.0)
+        end
+    end
+
+    return keys_vec, fs
+end
+
+"""
+    cycspace_length_interval_countmatrix(result::RandomSubsegmentResult, k;
+        n_subspaces=nothing, sort_by_tp_with_rmax=nothing,
+        filter_shorter_than=0, filter_shorter_r_max=Inf)
+
+Return `(sig, M)` where `M[i,j]` is the number of segments of length `segment_lengths[j]` whose
+`k`-dimensional cycling subspace equals `sig[i]`, counting only intervals with length at least
+`filter_shorter_than` (with interval endpoints clipped at `filter_shorter_r_max`).
+Ordering matches the old `signaturesLengthToIntervalCount` behavior.
+"""
+function cycspace_length_interval_countmatrix(
+    result::RandomSubsegmentResult,
+    k;
+    n_subspaces = nothing,
+    sort_by_tp_with_rmax = nothing,
+    filter_shorter_than = 0,
+    filter_shorter_r_max = Inf,
+)
+    int_dict = _cycspace_interval_dict(result, k)
+    keys_vec = collect(keys(int_dict))
+    n_lengths = length(result.segment_lengths)
+
+    ct_dict = Dict{Matrix{Int},Vector{Int}}(V => zeros(Int, n_lengths) for V in keys_vec)
+    for (i, sigs) in enumerate(result.signatures)
+        for sig in sigs
+            if length(sig.birth_vector) >= k
+                p1, p2 = dimension_interval(sig, k)
+                if p1 <= p2
+                    d = max(0.0, min(Float64(p2), Float64(filter_shorter_r_max)) - Float64(p1))
+                    if d >= filter_shorter_than
+                        V = Int.(colspace_normal_form(sig.cycling_matrix[:, 1:k]))
+                        ct_dict[V][i] += 1
+                    end
+                end
+            end
+        end
+    end
+
+    if sort_by_tp_with_rmax !== nothing
+        scores = map(keys_vec) do V
+            _cycspace_total_persistence(int_dict[V], sort_by_tp_with_rmax)
+        end
+        p = sortperm(scores, rev = true)
+        keys_vec = keys_vec[p]
+    else
+        scores = map(V -> sum(ct_dict[V]), keys_vec)
+        p = sortperm(scores, rev = true)
+        keys_vec = keys_vec[p]
+    end
+
+    if n_subspaces !== nothing
+        keys_vec = keys_vec[1:min(length(keys_vec), n_subspaces)]
+    end
+
+    M = zeros(Int, length(keys_vec), n_lengths)
+    for (i, V) in enumerate(keys_vec)
+        M[i, :] = ct_dict[V]
+    end
+    return keys_vec, M
+end
+
+"""
+    cycspace_total_distribution(result::RandomSubsegmentResult, V)
+
+Return a step function `f(r)` giving the total number of segments (summed over all segment lengths)
+whose `k = size(V,2)`-dimensional cycling space equals `V` at radius `r`.
+"""
+function cycspace_total_distribution(result::RandomSubsegmentResult, V)
+    int_vecs = cycspace_intervals(result, V)
+    all_ints = reduce(vcat, int_vecs; init = Tuple{Float64,Float64}[])
+    return sum(all_ints, init = indicator_function(1, 0)) do (p1, p2)
+        indicator_function(p1, p2, 1.0)
+    end
+end
+
+"""
+    cycspace_total_distributions(result::RandomSubsegmentResult, k; n_subspaces=nothing)
+
+Compute total radius-distributions for the most frequent `k`-dimensional cycling spaces.
+Returns `(sig, fs)` where `sig` is a vector of subspace matrices and `fs[i]` is the corresponding
+total distribution step function.
+"""
+function cycspace_total_distributions(result::RandomSubsegmentResult, k; n_subspaces = nothing)
+    sig, _ = cycspace_length_countmatrix(result, k; n_subspaces = n_subspaces)
+    fs = map(sig) do V
+        cycspace_total_distribution(result, V)
+    end
+    return sig, fs
+end
+
+function _step_post_xy(f::StepFunction, x_stop::Real; x_start::Real = 0.0)
+    x_start > x_stop && throw(ArgumentError("x_start must be <= x_stop. Got $x_start and $x_stop."))
+
+    xs = Float64[x_start]
+    ys = Float64[float(f(x_start))]
+
+    for x in f.xs
+        xx = float(x)
+        if isfinite(xx) && xx > x_start && xx < x_stop
+            push!(xs, xx)
+            push!(ys, float(f(xx)))
+        end
+    end
+
+    push!(xs, float(x_stop))
+    push!(ys, ys[end])
+    return xs, ys
 end
 
 """
