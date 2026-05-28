@@ -51,7 +51,6 @@ include("H1Cohomology/ATTools.jl")
 using .ATTools
 
 include("ff.jl")
-include("point-identification-distance-matrix.jl")
 include("comparison-space.jl")
 include("lin-alg-util.jl")
 include("dynamic-distance.jl")

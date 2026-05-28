@@ -29,11 +29,11 @@ Implements the conversion of an acyclic cubical cover to an induced chain.
 A representation of an induced chain
 """
 function induced_one_chain(carrier::AbstractCubicalAcyclicCarrier, edge_boxes)
-    error("induced_one_cycle not implemented for $(typeof(carrier))")
+    throw(MethodError(induced_one_chain, (carrier, edge_boxes)))
 end
 
 function annotate_chain(carrier::AbstractCubicalAcyclicCarrier, chain)
-    error("annotate_chain not implemented for $(typeof(carrier))")
+    throw(MethodError(annotate_chain, (carrier, chain)))
 end
 
 """
@@ -211,106 +211,6 @@ end
 function betti_1(carrier::CubicalVRCarrier)
     return size(carrier.h1, 1)
 end
-
-# ==============================================================================
-# QUOTIENT CUBICAL VR CARRIER IMPLEMENTATIONS
-# ==============================================================================
-
-struct QuotientCubicalVRCarrier{S<:Integer,V} <: AbstractCubicalAcyclicCarrier
-    pts::Matrix{S}
-    box_identifications::Vector{Vector{Int}} # maps index -> collection of boxes, need also box -> index
-    pt_ind_to_class::Vector{Int} # maps a point to its quivalence class
-    cplx::CellComplex{Simplex}
-    h1::V
-end
-
-"""
-    QuotientCubicalVRCarrier(pts::AbstractMatrix{S}, box_identifications::Vector{Vector{Int}}) where S<:Integer
-
-A box cover where boxes can be identified. It is on the user that the quotient makes sense.
-
-# Arguments
-- pts : the list of all box centers of the carrier, each column is a box center
-- box_identification : the list of all equivalence classes. an equivalence class is a list of indices to the correpsonding columns in pts
-- pt_to_class : for every point in pts, contains the index of its equivalence class
-- `cplx::CellComplex{Simplex}`: The Nerve of the cubical cover, it is the ``l_\\infty``-distance VR-complex of the box centers.
-- `h1::V`: The transpose of h1 is a basis for the first cohomology of the complex.
-"""
-function QuotientCubicalVRCarrier(pts::AbstractMatrix{S}, box_identifications::Vector{Vector{Int}}) where S<:Integer
-    # TODO: 1. implement
-    if !issorted(eachcol(pts))
-        p = sortperm(eachcol(pts))
-        pts = pts[:, p]
-        box_identifications = sort(map(v-> p[v], box_identifications))
-    end
-
-    D = PointIdentificationDistanceMatrix(pts, box_identifications, chebyshev)
-
-    cplx = vr_incremental(D, 1)
-    @info "Complex built with $(length(get(cplx.cells, 1, []))) edges and $(length(get(cplx.cells, 2, []))) triangles"
-    @info "Generating boundary matrices..."
-    D0 = coboundaryMatrix(cplx, 0)
-    D1 = coboundaryMatrix(cplx, 1)
-    @info "Computing cohomology..."
-    h1 = copy(transpose(firstCohomology(D0, D1)))
-    @info "Cohomology computation complete."
-    deleteAllBoundaryMatrices(cplx) # can be recomputed if necessary
-    @info "CubicalVRCarrier created with $(size(pts, 2)) points and $(size(h1,1)) cohomology basis vectors."
-    size(h1,1) == 0 && @warn "The carrier has trivial first cohomology."
-    return QuotientCubicalVRCarrier{S,typeof(h1)}(pts, box_identifications, cplx, h1)
-end
-
-function induced_one_chain(carrier::QuotientCubicalVRCarrier, cover_boxes)
-    pts_indices = Int[]
-    filter!(cover_boxes) do box
-        ind = searchsorted(eachcol(carrier.pts), box)
-        if length(ind) == 1
-            push!(pts_indices, ind[1])
-        end
-        return !isempty(ind)
-    end
-
-    # translate indices
-    indices = carrier.pt_ind_to_class[pts_indices]
-
-    # remove successive duplicates
-    no_duplicate_indices = filter(i -> i == 1 || indices[i] != indices[i-1], 1:length(indices))
-    cover_boxes = cover_boxes[no_duplicate_indices]
-    indices = indices[no_duplicate_indices]
-
-    # generate chain
-    v = spzeros(Int, length(carrier.cplx.cells[1]))
-    for i in 1:length(cover_boxes)-1
-        if chebyshev(cover_boxes[i], cover_boxes[i+1]) == 1
-            # find edge in cplx
-            e = Simplex([indices[i], indices[i+1]])
-            e_ind = searchsortedfirst(carrier.cplx.cells[1], e)
-            v[e_ind] += sign(indices[i+1] - indices[i])
-        else
-            fix_indices = fix_edge(carrier, cover_boxes[i], cover_boxes[i+1])
-
-            for j in 1:length(fix_indices)-1
-                e = Simplex([fix_indices[j], fix_indices[j+1]])
-                e_ind = searchsortedfirst(carrier.cplx.cells[1], e)
-                v[e_ind] += sign(fix_indices[j+1] - fix_indices[j])
-            end
-        end
-    end
-    return v
-end
-
-function fix_edge(carrier::QuotientCubicalVRCarrier, i, j)
-    # only do cases 1 and 2, the other is not worth it yet
-end
-
-function annotate_chain(carrier::QuotientCubicalVRCarrier, chain)
-    return carrier.h1 * chain
-end
-
-function betti_1(carrier::QuotientCubicalVRCarrier)
-    return size(carrier.h1, 1)
-end
-
 
 # ==============================================================================
 # CUBICAL CARRIER IMPLEMENTATIONS
@@ -683,9 +583,12 @@ end
 Computes the intersection of the lines `(1-l)*a[i]+l*b[i]`
 """
 function intersect_lines(a, b)
-    return intersect_lines(a[1,], a[2], b[1], b[2]) # note condition not great, maybe use geometrybasics implementation
+    return intersect_lines(a[1,], a[2], b[1], b[2])
 end
 
 function intersect_lines(a1, a2, b1, b2)
+    if a1 == a2 && b1 == b2
+        return 0.0
+    end
     return (a1 - a2) / (b2 - b1 - a2 + a1) # note condition not great, maybe use geometrybasics implementation
 end

@@ -31,7 +31,7 @@ function dimension_interval(cs::CyclingSignature, k)
 end
 
 function dimension_function(cs::CyclingSignature)
-    return StepFunction(cs.birth_vector, 0:length(birth_vector))
+    return StepFunction(cs.birth_vector, collect(0:length(cs.birth_vector)))
 end
 
 function cycling_matrix(cs::CyclingSignature; r=Inf)
@@ -94,38 +94,53 @@ function cycling_signature(trajectory_space::TrajectorySpace, range, r_max=nothi
 end
 
 """
-    cycling_signature([alg::Val, ]trajectory_space::TrajectorySpace, range; r_max, field=DEFAULT_FIELD)
+    cycling_signature([alg::Val, ]trajectory_space::TrajectorySpace, range, r_max=nothing; field=DEFAULT_FIELD)
 
 Computes the cycling signature of the segment specified by `range` inside of `trajectory_space` for filtration values `` [0,r_{max}] ``.
 Optionally, a field and an algorithm can be specified.
 
 # Arguments
-- `alg`: currently only :DistanceMatrix works
+- `alg`: barcode backend. `Val(:DistanceMatrix)` is the default; `Val(:Ripserer)` is available when Ripserer is loaded.
 - `trajectory_space`: the trajectory space
 - `range`: currently, this evaluates the cycling signature on the interval `[first(range):last(range)]`
 - `r_max`: if unspecified, the default in `trajectory_space` is used
 - `field`: coefficient field for homology computation
 
 # Returns
-TODO
+A `CyclingSignature` whose columns are independent cycling vectors and whose birth vector records the filtration value at which each column appears.
 """
 function cycling_signature(alg::Val, trajectory_space::TrajectorySpace, range, r_max=nothing; field=DEFAULT_FIELD)
-    if r_max === nothing
-        if trajectory_space.flt_max_heuristic === nothing
-            throw(ArgumentError("r_max must be specified, if trajectory_space.flt_max_heuristic is nothing."))
-        end
-        r_max = trajectory_space.flt_max_heuristic
-    end
-    # compute trajectory points and barcode
-    traj = get_trajectory(trajectory_space)
-    traj_pts = evaluate_interval(traj, first(range), last(range))
+    r_max = _resolve_r_max(trajectory_space, r_max)
+    traj_pts = _trajectory_points(trajectory_space, range)
     traj_barc = trajectory_barcode(alg, traj_pts, get_metric(trajectory_space), r_max, field)
 
-    # compute cycling signature in the homological comparison space
-    births, cyc_vectors = births_cycling_vectors_from_trajectory_barcode(traj_pts, traj_barc, get_comparison_space(trajectory_space))
+    return _cycling_signature_from_barcode(
+        traj_pts,
+        traj_barc,
+        get_comparison_space(trajectory_space),
+        field,
+    )
+end
+
+function _resolve_r_max(trajectory_space::TrajectorySpace, r_max)
+    if r_max !== nothing
+        return r_max
+    elseif trajectory_space.flt_max_heuristic !== nothing
+        return trajectory_space.flt_max_heuristic
+    end
+    throw(ArgumentError("r_max must be specified, if trajectory_space.flt_max_heuristic is nothing."))
+end
+
+function _trajectory_points(trajectory_space::TrajectorySpace, range)
+    traj = get_trajectory(trajectory_space)
+    return evaluate_interval(traj, first(range), last(range))
+end
+
+function _cycling_signature_from_barcode(points, barcode, comparison_space, field)
+    births, cyc_vectors = births_cycling_vectors_from_trajectory_barcode(points, barcode, comparison_space)
     length(births) != length(cyc_vectors) && @warn "Inconsistent lengths of births and cycling vectors"
     if isempty(births)
-        return CyclingSignature(zeros(field, 0, 0), Float64[])
+        return CyclingSignature(zeros(field, betti_1(comparison_space), 0), Float64[])
     end
     cycling_matrix = hcat(cyc_vectors...)
 

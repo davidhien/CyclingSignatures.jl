@@ -6,7 +6,7 @@ The idea of a comparison space is to have a space ``Y`` and a map ``\Gamma \righ
     H_1( O_r(\gamma) \rightarrow Y_r)
 ``
 
-yield a meaningful classifier for a cycle in the thickning of ``\gamma``.
+yield a meaningful classifier for a cycle in the thickening of ``\gamma``.
 Currently, only static spaces ``Y`` are supported.
 
 ## Comparison Space Interface
@@ -26,7 +26,7 @@ The following methods are required:
 
 Cubical comparison spaces are comparison spaces which are cubical complexes. 
 We implemented cubical comparison spaces in space alone and in the unit tangent bundle.
-Furthermore, we provide an intereface which can be extended, e.g. to support different domains or periodic boundaries.
+Furthermore, we provide an interface which can be extended, e.g. to support different domains or periodic boundaries.
 
 ### Interface
 
@@ -43,7 +43,7 @@ The following methods are required:
 - `carrier(cs)`: Returns the cubical acyclic carrier.
 - `betti_1(comparison_space)`: Returns the first Betti number of the comparison space.
 
-The implementation of `map_cycles` for `AbstractCubicalComparisonSpace`s does the following:
+The implementation of `map_cycle` for `AbstractCubicalComparisonSpace`s does the following:
 
 1. For each edge:
     1. Compute the boxes which it intersects (using `edge_boxes`).
@@ -54,7 +54,7 @@ The implementation of `map_cycles` for `AbstractCubicalComparisonSpace`s does th
 
 We provide two implementations of cubical comparison spaces:
 - `CubicalComparisonSpace`: The cubes are assumed to cover the data in space only.
-- `SBCubicalComparisonSpace`: The cubes are assumed to cover the data in the unit tangent bundle
+- `SBCubicalComparisonSpace`: The cubes are assumed to cover the data in the unit tangent bundle.
 
 
 ## Acyclic Carrier Interface

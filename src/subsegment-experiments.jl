@@ -6,7 +6,7 @@ struct RandomSubsegmentExperiment{T,S}
 end
 
 function RandomSubsegmentExperiment(trajectory_space, segment_lengths, n_runs)
-    return RandomSubsegmentExperiment(trajectory_space, segment_lengths, n_runs, rand(Int))
+    return RandomSubsegmentExperiment(trajectory_space, segment_lengths, n_runs, rand(1:typemax(Int)))
 end
 
 get_trajectory_space(exp::RandomSubsegmentExperiment) = exp.trajectory_space

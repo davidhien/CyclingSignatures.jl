@@ -33,7 +33,7 @@ Although we usually recommend it, for this example we do not enforce any conditi
 ## Creating a TrajectorySpace
 
 A `TrajectorySpace` represents a time series and a cubical cover `` Y``.
-The cycling signature of a segment is the subspace of ``H_1(Y)`` induced by including a thickening of the segment into the ``Y``.
+The cycling signature of a segment is the subspace of ``H_1(Y)`` induced by including a thickening of the segment into ``Y``.
 
 We generate time series data by evaluating the integrated trajectory on an equidistant grid.
 We then compute the direction (i.e. normalized tangent vector) at each point.
@@ -85,7 +85,7 @@ exp = RandomSubsegmentExperiment(traj_space, segment_lengths, n_runs, 42)
 results = run_experiment(exp)
 ```
 
-The resulting collection of cycling signatures can be analyzed to obtain a coarse descrption of the dynamics on the Lorenz attractor.
+The resulting collection of cycling signatures can be analyzed to obtain a coarse description of the dynamics on the Lorenz attractor.
 
 
 ```@example lorenz
@@ -99,14 +99,12 @@ pltinc = plot_cycspace_inclusion(sig1, sig2)
 combined = plot(plt_rank, plt1, plt2, pltinc; size=(800, 600), layout = (2, 2))
 ```
 
-The top left shows the distribution of cycling ranks. While very short segment have rank 0 (which makes sense because they are too short to wrap around anything), after a certain time span all segments have nontrivial cycling rank. Therefore cycling is typical in this time series.
+The top-left plot shows the distribution of cycling ranks. Very short segments have rank 0,
+which is expected because they are too short to wrap around anything. After a certain time
+span, most segments have nontrivial cycling rank, indicating that cycling is typical in this
+time series.
 
-we see three rank 1 signatures.
-one much more frequent than
-
-
-
-here:
-coarse description of the Lorenz system, we see the three oscillations, two wings and transitions,
-comment that the time series is uneven and that is reflected in the cycling signatures,
-longer dataset reveals more fine grained information
+The subspace-frequency plots summarize which cycling spaces occur most often. In the Lorenz
+system, rank-1 signatures correspond to the dominant cycling motions around the two wings
+and transitions between them. Longer datasets and denser segment-length grids reveal more
+fine-grained recurrent structure.
