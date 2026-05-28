@@ -8,16 +8,16 @@ Documentation for [CyclingSignatures.jl](https://github.com/davidhien/CyclingSig
 
 ## About
 
-Cycling signatures are a tool to identify and classify oscillatory dynamics in (multivariate) time series. 
+Cycling signatures are a tool to identify and classify oscillatory dynamics in multivariate time series.
 
-Given a time seris ``x_0,x_1,\dots, x_m \in \mathbb{R}^n``, the basic pipeline is:
+Given a time series ``x_0,x_1,\dots, x_m \in \mathbb{R}^n``, the basic pipeline is:
 1. Generate a comparison space ``Y`` by covering the time series and compute its homology ``H_1(Y)``.
 2. Compute the homology ``H_1(\gamma)`` of thickened segments ``\gamma = \{x_i, x_{i+1},\dots, x_j\}``.
-3. Compute the image of the map ``H_1(\gamma) \rightarrow H_1(Y)``, this is the *Cycling Signature*.
+3. Compute the image of the map ``H_1(\gamma) \rightarrow H_1(Y)``. This is the *cycling signature*.
 
 
 Collections of cycling signatures can provide a coarse description of recurrent dynamics.
-For instance, frequently appearing one dimensional cycling signatures indicate elementary cycling motions.
+For instance, frequently appearing one-dimensional cycling signatures indicate elementary cycling motions.
 These can be related using higher dimensional cycling signatures.
 
 ## Installation

@@ -13,10 +13,10 @@ end
 """
     trajectory_barcode(::Val{:DistanceMatrix}, points, metric, fltThreshold, field=DEFAULT_FIELD)
 
-Computes a trajectory barcode using the distance matrix method, for arguments see [`trajectory_barcode`](@ref).
-This assumes (and formall makes use of) a curve hypothesis.
+Computes a trajectory barcode using the distance matrix method. For arguments, see [`trajectory_barcode`](@ref).
+This assumes, and formally makes use of, a curve hypothesis.
 
-The distance complex of a the points in `points` with respect to the `metric` is the filtered complex where
+The distance complex of the points in `points` with respect to the `metric` is the filtered complex where
 - vertices are pairs `(i, j)` with `i < j`, filtered by `metric(points[:, i], points[:, j])` and
 - edges are nearest 4, with filtration value of an edge being the max of its adjacent vertices.
 
@@ -77,11 +77,11 @@ end
 Computes a filtration-minimal vertex of each connected component of the distance complex up to the filtration threshold `flt_threshold`.
 The distance complex is specified by `points` and `metric`.
 
-This is implmented using a two pass annotation algorithm for images, the image being the upper right part of the distance matrix.
+This is implemented using a two-pass annotation algorithm for images, the image being the upper right part of the distance matrix.
 In this implementation, the distance matrix is computed explicitly.
 """
 function dm_components_explicit(points, metric, flt_threshold)
-    # implmented using a two pass distance matrix algorithm
+    # implemented using a two-pass distance matrix algorithm
     # First pass: provisional labels are assigned to each entry, a union-structure for the labels is maintained
     # Second pass: union-find structure is used to find the smallest node in each connected component
     cc, cc_labels, d_mat = dm_components_first_pass_explicit(points, metric, flt_threshold)
@@ -96,11 +96,11 @@ end
     filtration_min_vertices_implicit_dm(points, metric, flt_threshold)
 
 Computes a filtration-minimal vertex of each connected component of the distance complex specified by `points` and `metric` up to the filtration threshold `flt_threshold`.
-This is implmented using a two pass annotation algorithm for images, the image being the upper right part of the distance matrix.
+This is implemented using a two-pass annotation algorithm for images, the image being the upper right part of the distance matrix.
 In this implementation, the distance matrix is *not* computed explicitly.
 """
 function dm_components_implicit(points, metric, flt_threshold)
-    # implmented using a two pass distance matrix algorithm
+    # implemented using a two-pass distance matrix algorithm
     # First pass: provisional labels are assigned to each entry, a union-structure for the labels is maintained
     # Second pass: union-find structure is used to find the smallest node in each connected component
     cc, cc_labels = dm_components_first_pass_implicit(points, metric, flt_threshold)

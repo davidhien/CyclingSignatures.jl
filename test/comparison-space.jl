@@ -3,8 +3,10 @@ using LinearAlgebra
 using CyclingSignatures: edge_boxes, projection_initial_max_component, projection_max_switches
 using CyclingSignatures: edge_boxes_sphere_bundle
 using CyclingSignatures: boxes_bfs_shortest_path
+using CyclingSignatures: intersect_lines
 
-using CyclingSignatures: CubicalVRCarrier, induced_one_chain, annotate_chain, betti_1
+using CyclingSignatures: AbstractCubicalAcyclicCarrier
+using CyclingSignatures: CubicalVRCarrier, points, complex, h1, induced_one_chain, annotate_chain, betti_1
 using CyclingSignatures: fix_edge
 using CyclingSignatures.ATTools: boundaryMatrix
 
@@ -191,6 +193,36 @@ end
     pts = [[0, 0], [1, 1], [2, 0]]
     boxes = boxes_bfs_shortest_path(pts, [2, 0], [0, 0])
     @test reverse(pts) == boxes
+
+    pts = [[0, 0], [1, 1], [2, 0]]
+    boxes = boxes_bfs_shortest_path(pts, [0, 0], [0, 0])
+    @test boxes == [[0,0]]
+end
+
+@testset "intersect_lines" begin
+    # Four-argument method
+    @test intersect_lines(0.0, 0.0, 1.0, 1.0) ≈ 0.0
+    @test intersect_lines(1.0, 0.0, 0.0, 1.0) ≈ 0.5
+
+    # Non-symmetric example
+    @test intersect_lines(2.0, 1.0, 4.0, 5.0) ≈ 2 / 4
+
+    # Two-argument method, assuming each line is represented by two values
+    a = [2.0 1.0]
+    b = [4.0 5.0]
+
+    @test intersect_lines(a, b) ≈ 0.5
+end
+
+# ==============================================================================
+# ABSTRACT TYPE TESTS
+# ==============================================================================
+
+@testset "AbstractCubicalAcyclicCarrier" begin
+    struct DummyCarrier <: AbstractCubicalAcyclicCarrier end
+
+    @test_throws MethodError induced_one_chain(DummyCarrier(), [])
+    @test_throws MethodError annotate_chain(DummyCarrier(), [])
 end
 
 # ==============================================================================
@@ -207,8 +239,12 @@ end
 
         # test fields
         carrier = CubicalVRCarrier(pts_m_unsorted)
-        @test size(carrier.h1, 1) == 1
-        @test pts_sorted == carrier.pts
+        @test size(h1(carrier), 1) == 1
+        @test pts_sorted == points(carrier)
+        @test complex(carrier) !== nothing
+
+        # test show method
+        @test_nowarn sprint(show, carrier)
 
         ### setup for interface methods
 
@@ -277,6 +313,9 @@ end
     comp_space = cubical_vr_comparison_space_via_cover(circle_data, boxsize)
     @test all(==(2), norm.(eachcol(comp_space.carrier.pts), Inf))
 
+    # test show method
+    @test_nowarn sprint(show, comp_space)
+
     # test edge_boxes
     e_b = map(zip(eachcol(circle_data), Iterators.drop(eachcol(circle_data), 1))) do t
         edge_boxes(comp_space, t...)
@@ -318,6 +357,12 @@ end
     boxsize = .5
     sb_radius = 2
     comp_space = sb_cubical_vr_comparison_space_via_cover(utb_circle_data, boxsize, sb_radius)
+
+    # test show method
+    @test_nowarn sprint(show, comp_space)
+
+    # test betti_1
+    @test betti_1(comp_space) == 1
 
     #
     # test edge_boxes
