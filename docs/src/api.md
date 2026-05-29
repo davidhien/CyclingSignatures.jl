@@ -65,3 +65,22 @@ Currently, only a Vietoris--Rips type implementation is supported.
 # Sampleable Trajectory
 
 *Under Construction.*
+
+# Subsegment Experiments
+
+Use `RandomSubsegmentExperiment` to evaluate cycling signatures on randomly sampled trajectory
+subsegments. For backend comparisons, sample starts once and pass them into each run:
+
+```julia
+exp = RandomSubsegmentExperiment(traj_space, [20, 40, 80], 25, 42)
+starts = sample_segment_starts(exp)
+
+dm = run_experiment(exp; alg=Val(:DistanceMatrix), segment_starts=starts, progress=false)
+rp = run_experiment(exp; alg=Val(:Ripserer), segment_starts=starts, progress=false)
+comparison = compare_experiment_results(dm, rp)
+```
+
+`run_timed_experiment` records one `time_ns()` measurement per `cycling_signature` call and
+returns a `TimedRandomSubsegmentResult`. Use `run_paired_timed_experiments` to sample starts once
+and run multiple backends on those identical subsegments. The package returns plain Julia results;
+downstream scripts can convert `summarize_timings` and `summarize_agreement` output to tables.

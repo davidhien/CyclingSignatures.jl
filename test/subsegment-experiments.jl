@@ -45,6 +45,101 @@ end
     @test s1 == s2
     end
 
+    @testset "experiment segment starts" begin
+        circle_data = mapslices(v -> normalize(v, Inf), circle_time_series(20, 2), dims=2)
+        traj_space = trajectory_space_from_trajectory(circle_data, 0.5)
+        exp = RandomSubsegmentExperiment(traj_space, [10, 20], 3, 1234)
+
+        starts = sample_segment_starts(exp)
+        @test starts == sample_segment_starts(exp)
+
+        result = run_experiment(exp; segment_starts = starts, progress = false)
+        @test result.segment_starts == starts
+
+        bad_shape = [starts[1]]
+        @test_throws ArgumentError run_experiment(exp; segment_starts = bad_shape, progress = false)
+
+        bad_length = [starts[1][1:2], starts[2]]
+        @test_throws ArgumentError run_experiment(exp; segment_starts = bad_length, progress = false)
+
+        bad_range = deepcopy(starts)
+        bad_range[2][1] = size(circle_data, 2)
+        @test_throws ArgumentError run_experiment(exp; segment_starts = bad_range, progress = false)
+    end
+
+    @testset "timed experiments" begin
+        circle_data = mapslices(v -> normalize(v, Inf), circle_time_series(20, 1), dims=2)
+        traj_space = trajectory_space_from_trajectory(circle_data, 0.5)
+        exp = RandomSubsegmentExperiment(traj_space, [10], 1, 1234)
+        starts = sample_segment_starts(exp)
+
+        timed = run_timed_experiment(exp; segment_starts = starts, progress = false)
+        plain = run_experiment(exp; segment_starts = starts, progress = false)
+
+        @test timed.result.segment_starts == starts
+        @test length(timed.result.signatures) == length(plain.signatures)
+        @test length(timed.result.signatures[1]) == length(plain.signatures[1])
+        @test length(timed.elapsed_ns) == 1
+        @test length(timed.elapsed_ns[1]) == 1
+        @test timed.elapsed_ns[1][1] > 0
+        @test only(summarize_timings(timed)).n_runs == 1
+
+        paired = run_paired_timed_experiments(
+            exp,
+            (Val(:DistanceMatrix), Val(:DistanceMatrixOld));
+            progress = false,
+        )
+        @test paired[:DistanceMatrix].result.segment_starts ==
+              paired[:DistanceMatrixOld].result.segment_starts
+    end
+
+    @testset "signature agreement" begin
+        F = FF{47}
+        e1 = reshape(F.([1, 0]), 2, 1)
+        e2 = reshape(F.([0, 1]), 2, 1)
+        e12 = F.([1 0; 0 1])
+
+        sig = CyclingSignature(e12, [0.2, 0.4])
+        identical = compare_signatures(sig, sig)
+        @test identical.dimension_match
+        @test identical.birth_vector_match
+        @test identical.cycling_space_match
+
+        rank_mismatch = compare_signatures(sig, CyclingSignature(e1, [0.2]))
+        @test !rank_mismatch.dimension_match
+
+        birth_mismatch = compare_signatures(sig, CyclingSignature(e12, [0.2, 0.5]))
+        @test !birth_mismatch.birth_vector_match
+        @test birth_mismatch.max_birth_discrepancy ≈ 0.1
+
+        space_mismatch = compare_signatures(
+            CyclingSignature(e1, [0.2]),
+            CyclingSignature(e2, [0.2]),
+        )
+        @test !space_mismatch.cycling_space_match
+
+        result_left = RandomSubsegmentResult(
+            nothing,
+            [10],
+            1,
+            [[1]],
+            1.0,
+            [CyclingSignature[CyclingSignature(e1, [0.2])]],
+        )
+        result_right = RandomSubsegmentResult(
+            nothing,
+            [10],
+            1,
+            [[1]],
+            1.0,
+            [CyclingSignature[CyclingSignature(e2, [0.2])]],
+        )
+        comparison = compare_experiment_results(result_left, result_right)
+        summary = only(summarize_agreement(comparison))
+        @test summary.n_runs == 1
+        @test summary.cycling_space_mismatches == 1
+    end
+
     @testset "cycspace_inclusion_matrix" begin
         F = FF{47}
 

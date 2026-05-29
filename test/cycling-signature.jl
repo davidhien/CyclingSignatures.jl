@@ -35,6 +35,44 @@ include("test-util.jl")
         @test cycling_matrix(sig1) != cycling_matrix(sig2)
         @test cycling_matrix(sig1) == cycling_matrix(sig3)
     end
+
+    @testset "single and double loops in double circle" begin
+        boxsize = 0.2
+        subdivision = 40
+        tsn, _ = figure8_trajectory_space(subdivision, [0, 1]; boxsize)
+
+        left_sig = cycling_signature(
+            Val(:DistanceMatrix),
+            tsn,
+            1:(subdivision + 1),
+            boxsize,
+        )
+        right_sig = cycling_signature(
+            Val(:DistanceMatrix),
+            tsn,
+            (subdivision + 1):(2 * subdivision + 1),
+            boxsize,
+        )
+        both_sig = cycling_signature(
+            Val(:DistanceMatrix),
+            tsn,
+            1:(2 * subdivision + 1),
+            boxsize,
+        )
+
+        @test dimension(left_sig) == 1
+        @test dimension(right_sig) == 1
+        @test dimension(both_sig) == 2
+
+        left_space = colspace_normal_form(cycling_matrix(left_sig))
+        right_space = colspace_normal_form(cycling_matrix(right_sig))
+        both_space = colspace_normal_form(cycling_matrix(both_sig))
+
+        @test left_space != right_space
+        @test size(left_space, 2) == 1
+        @test size(right_space, 2) == 1
+        @test size(both_space, 2) == 2
+    end
 end
 
 

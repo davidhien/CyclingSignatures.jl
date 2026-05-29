@@ -26,6 +26,9 @@ export DynamicDistance
 # subsegment-experiments.jl
 export RandomSubsegmentExperiment, get_trajectory_space, get_segment_lengths, get_n_experiments
 export RandomSubsegmentResult, run_experiment, sample_segment_starts
+export TimedRandomSubsegmentResult, run_timed_experiment, run_paired_timed_experiments
+export SignatureAgreement, ExperimentAgreement, compare_signatures, compare_experiment_results
+export summarize_timings, summarize_agreement
 export rank_distribution, cycspace_intervals, cycspace_distribution, cycspace_level_intervals
 export cycspace_length_count, cycspace_length_countmatrix, cycspace_length_count_at_r, cycspace_length_countmatrix_at_r
 export signature_time_spans, signature_segments
@@ -44,7 +47,8 @@ using Graphs, SimpleWeightedGraphs
 using ProgressBars
 using DataInterpolations
 using StepFunctions
-using Random: MersenneTwister
+using Random: AbstractRNG, MersenneTwister
+using Statistics
 using Base.Threads
 
 include("H1Cohomology/ATTools.jl")

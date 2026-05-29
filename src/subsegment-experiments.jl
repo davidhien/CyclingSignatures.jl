@@ -32,28 +32,18 @@ function run_experiment(exp::RandomSubsegmentExperiment;
     threshold=nothing,
     resample_segment_start=true,
     progress=true,
-    parallel_inner=false)
+    parallel_inner=false,
+    segment_starts=nothing)
 
     traj_space = get_trajectory_space(exp)
-    traj = get_trajectory(traj_space)
-    t_indices = time_domain(traj)
-    n_time_steps = length(t_indices)
-    rng = MersenneTwister(exp.seed)
-
     seg_lengths = get_segment_lengths(exp)
     n_runs = exp.n_runs
+    resolved_threshold = _resolve_r_max(traj_space, threshold)
 
-    segment_starts = map(seg_lengths) do len
-        sample_segment_starts(n_time_steps, len, n_runs, rng)
-    end
-
-    if !resample_segment_start
-        _, k = findmax(seg_lengths)
-        for i in eachindex(segment_starts)
-            if i != k
-                segment_starts[i] = segment_starts[k]
-            end
-        end
+    if segment_starts === nothing
+        segment_starts = sample_segment_starts(exp; resample_segment_start)
+    else
+        segment_starts = _validate_segment_starts(traj_space, seg_lengths, n_runs, segment_starts)
     end
 
     signatures = [Vector{CyclingSignature}(undef, n_runs) for _ in seg_lengths]
@@ -64,28 +54,401 @@ function run_experiment(exp::RandomSubsegmentExperiment;
         if parallel_inner
             @threads for j in 1:n_runs
                 cur_range = segment_starts[i][j]:(segment_starts[i][j]+len-1)
-                signatures[i][j] = cycling_signature(alg, traj_space, cur_range, threshold, field=field)
+                signatures[i][j] = cycling_signature(alg, traj_space, cur_range, resolved_threshold, field=field)
             end
         else
             inner_iter = 1:n_runs
 
             for j in inner_iter
                 cur_range = segment_starts[i][j]:(segment_starts[i][j]+len-1)
-                signatures[i][j] = cycling_signature(alg, traj_space, cur_range, threshold, field=field)
+                signatures[i][j] = cycling_signature(alg, traj_space, cur_range, resolved_threshold, field=field)
             end
         end
     end
 
-    if threshold === nothing
-        threshold = traj_space.flt_max_heuristic
-    end
-
-    return RandomSubsegmentResult(traj_space, seg_lengths, n_runs, segment_starts, threshold, signatures)
+    return RandomSubsegmentResult(traj_space, seg_lengths, n_runs, segment_starts, resolved_threshold, signatures)
 end
 
 function sample_segment_starts(n_time_steps::Int, segment_length::Int, n_experiments::Int, rng=MersenneTwister())
     max_start = n_time_steps - segment_length + 1
+    max_start >= 1 || throw(ArgumentError("segment_length must not exceed the number of time steps. Got $segment_length and $n_time_steps."))
     return rand(rng, 1:max_start, n_experiments)
+end
+
+function sample_segment_starts(
+    trajectory_space::TrajectorySpace,
+    segment_lengths,
+    n_runs::Integer,
+    rng::AbstractRNG=MersenneTwister();
+    resample_segment_start::Bool=true,
+)
+    n_runs >= 0 || throw(ArgumentError("n_runs must be non-negative. Got $n_runs."))
+    n_time_steps = length(time_domain(get_trajectory(trajectory_space)))
+    starts = map(segment_lengths) do len
+        sample_segment_starts(n_time_steps, len, n_runs, rng)
+    end
+
+    if !resample_segment_start && !isempty(starts)
+        _, k = findmax(segment_lengths)
+        for i in eachindex(starts)
+            if i != k
+                starts[i] = copy(starts[k])
+            end
+        end
+    end
+
+    return _validate_segment_starts(trajectory_space, segment_lengths, n_runs, starts)
+end
+
+function sample_segment_starts(exp::RandomSubsegmentExperiment; resample_segment_start::Bool=true)
+    return sample_segment_starts(
+        get_trajectory_space(exp),
+        get_segment_lengths(exp),
+        exp.n_runs,
+        MersenneTwister(exp.seed);
+        resample_segment_start,
+    )
+end
+
+function _validate_segment_starts(trajectory_space::TrajectorySpace, segment_lengths, n_runs, segment_starts)
+    length(segment_starts) == length(segment_lengths) ||
+        throw(ArgumentError("segment_starts must have one entry per segment length. Got $(length(segment_starts)) and $(length(segment_lengths))."))
+
+    n_time_steps = length(time_domain(get_trajectory(trajectory_space)))
+    starts = Vector{Vector{Int}}(undef, length(segment_lengths))
+
+    for i in eachindex(segment_lengths)
+        len = segment_lengths[i]
+        len >= 1 || throw(ArgumentError("segment lengths must be positive. Got $len."))
+        max_start = n_time_steps - len + 1
+        max_start >= 1 || throw(ArgumentError("segment_length must not exceed the number of time steps. Got $len and $n_time_steps."))
+
+        cur_starts = collect(Int, segment_starts[i])
+        length(cur_starts) == n_runs ||
+            throw(ArgumentError("segment_starts[$i] must have length $n_runs. Got $(length(cur_starts))."))
+
+        for start in cur_starts
+            if start < 1 || start > max_start
+                throw(ArgumentError("segment start $start for segment length $len is outside 1:$max_start."))
+            end
+        end
+
+        starts[i] = cur_starts
+    end
+
+    return starts
+end
+
+struct TimedRandomSubsegmentResult{T<:RandomSubsegmentResult}
+    result::T
+    backend::Symbol
+    elapsed_ns::Vector{Vector{UInt64}}
+    nthreads::Int
+end
+
+get_experiment_result(timed::TimedRandomSubsegmentResult) = timed.result
+get_elapsed_ns(timed::TimedRandomSubsegmentResult) = timed.elapsed_ns
+
+function elapsed_seconds(timed::TimedRandomSubsegmentResult)
+    return map(timed.elapsed_ns) do ns
+        Float64.(ns) ./ 1.0e9
+    end
+end
+
+function total_time_seconds(timed::TimedRandomSubsegmentResult)
+    return sum(sum, timed.elapsed_ns; init = UInt64(0)) / 1.0e9
+end
+
+function _all_elapsed_seconds(timed::TimedRandomSubsegmentResult)
+    seconds = elapsed_seconds(timed)
+    return reduce(vcat, seconds; init = Float64[])
+end
+
+function mean_time_seconds(timed::TimedRandomSubsegmentResult)
+    seconds = _all_elapsed_seconds(timed)
+    return isempty(seconds) ? NaN : mean(seconds)
+end
+
+function median_time_seconds(timed::TimedRandomSubsegmentResult)
+    seconds = _all_elapsed_seconds(timed)
+    return isempty(seconds) ? NaN : median(seconds)
+end
+
+function _backend_symbol(::Val{B}) where {B}
+    return B
+end
+
+function _backend_symbol(alg)
+    return Symbol(string(alg))
+end
+
+function _warmup_signature(alg, traj_space, segment_lengths, segment_starts, threshold, field)
+    isempty(segment_lengths) && return nothing
+    isempty(segment_starts[1]) && return nothing
+
+    len = segment_lengths[1]
+    start = segment_starts[1][1]
+    cur_range = start:(start + len - 1)
+    return cycling_signature(alg, traj_space, cur_range, threshold; field)
+end
+
+function run_timed_experiment(exp::RandomSubsegmentExperiment;
+    field=DEFAULT_FIELD,
+    alg=Val(:DistanceMatrix),
+    threshold=nothing,
+    segment_starts=nothing,
+    resample_segment_start=true,
+    progress=true,
+    parallel_inner=false,
+    warmup=true)
+
+    traj_space = get_trajectory_space(exp)
+    seg_lengths = get_segment_lengths(exp)
+    n_runs = exp.n_runs
+    resolved_threshold = _resolve_r_max(traj_space, threshold)
+
+    if segment_starts === nothing
+        segment_starts = sample_segment_starts(exp; resample_segment_start)
+    else
+        segment_starts = _validate_segment_starts(traj_space, seg_lengths, n_runs, segment_starts)
+    end
+
+    if warmup
+        _warmup_signature(alg, traj_space, seg_lengths, segment_starts, resolved_threshold, field)
+    end
+
+    signatures = [Vector{CyclingSignature}(undef, n_runs) for _ in seg_lengths]
+    elapsed_ns = [Vector{UInt64}(undef, n_runs) for _ in seg_lengths]
+
+    outer_iter = progress ? ProgressBar(enumerate(exp.segment_lengths)) : enumerate(exp.segment_lengths)
+
+    for (i, len) in outer_iter
+        if parallel_inner
+            @threads for j in 1:n_runs
+                cur_range = segment_starts[i][j]:(segment_starts[i][j] + len - 1)
+                start_ns = time_ns()
+                signatures[i][j] = cycling_signature(alg, traj_space, cur_range, resolved_threshold; field)
+                elapsed_ns[i][j] = time_ns() - start_ns
+            end
+        else
+            for j in 1:n_runs
+                cur_range = segment_starts[i][j]:(segment_starts[i][j] + len - 1)
+                start_ns = time_ns()
+                signatures[i][j] = cycling_signature(alg, traj_space, cur_range, resolved_threshold; field)
+                elapsed_ns[i][j] = time_ns() - start_ns
+            end
+        end
+    end
+
+    result = RandomSubsegmentResult(
+        traj_space,
+        seg_lengths,
+        n_runs,
+        segment_starts,
+        resolved_threshold,
+        signatures,
+    )
+
+    return TimedRandomSubsegmentResult(result, _backend_symbol(alg), elapsed_ns, nthreads())
+end
+
+function run_paired_timed_experiments(exp::RandomSubsegmentExperiment, backends;
+    field=DEFAULT_FIELD,
+    threshold=nothing,
+    resample_segment_start=true,
+    progress=true,
+    parallel_inner=false,
+    warmup=true)
+
+    starts = sample_segment_starts(exp; resample_segment_start)
+    results = Dict{Symbol,TimedRandomSubsegmentResult}()
+
+    for alg in backends
+        timed = run_timed_experiment(
+            exp;
+            alg,
+            field,
+            threshold,
+            segment_starts = starts,
+            progress,
+            parallel_inner,
+            warmup,
+        )
+        results[timed.backend] = timed
+    end
+
+    return results
+end
+
+struct SignatureAgreement
+    dimension_match::Bool
+    birth_vector_match::Bool
+    cycling_space_match::Bool
+    left_dimension::Int
+    right_dimension::Int
+    max_birth_discrepancy::Float64
+    reason::String
+end
+
+struct ExperimentAgreement{S}
+    segment_lengths::S
+    n_runs::Int
+    segment_starts::Vector{Vector{Int}}
+    comparisons::Vector{NamedTuple}
+end
+
+function _birth_discrepancy(left, right)
+    length(left) == length(right) || return Inf
+    isempty(left) && return 0.0
+
+    discrepancies = map(zip(left, right)) do (l, r)
+        if l == r
+            return 0.0
+        end
+        return abs(Float64(l) - Float64(r))
+    end
+    return maximum(discrepancies)
+end
+
+function _birth_vectors_match(left, right, atol, rtol)
+    length(left) == length(right) || return false
+    return all(isapprox(l, r; atol, rtol) for (l, r) in zip(left, right))
+end
+
+function compare_signatures(left::CyclingSignature, right::CyclingSignature;
+    r=nothing,
+    atol=1e-8,
+    rtol=1e-8)
+
+    left_dimension = r === nothing ? dimension(left) : dimension(left, r)
+    right_dimension = r === nothing ? dimension(right) : dimension(right, r)
+    dimension_match = left_dimension == right_dimension
+
+    left_births = r === nothing ? birth_vector(left) : birth_vector(left; r)
+    right_births = r === nothing ? birth_vector(right) : birth_vector(right; r)
+    birth_vector_match = _birth_vectors_match(left_births, right_births, atol, rtol)
+    max_birth_discrepancy = _birth_discrepancy(left_births, right_births)
+
+    left_matrix = r === nothing ? cycling_matrix(left) : cycling_matrix(left; r)
+    right_matrix = r === nothing ? cycling_matrix(right) : cycling_matrix(right; r)
+    cycling_space_match = colspace_normal_form(left_matrix) == colspace_normal_form(right_matrix)
+
+    reasons = String[]
+    dimension_match || push!(reasons, "dimension mismatch: $left_dimension != $right_dimension")
+    birth_vector_match || push!(reasons, "birth-vector mismatch")
+    cycling_space_match || push!(reasons, "cycling-space mismatch")
+    reason = isempty(reasons) ? "match" : join(reasons, "; ")
+
+    return SignatureAgreement(
+        dimension_match,
+        birth_vector_match,
+        cycling_space_match,
+        left_dimension,
+        right_dimension,
+        max_birth_discrepancy,
+        reason,
+    )
+end
+
+function _validate_comparable_results(left::RandomSubsegmentResult, right::RandomSubsegmentResult)
+    left.segment_lengths == right.segment_lengths ||
+        throw(ArgumentError("results must have identical segment_lengths."))
+    left.n_runs == right.n_runs ||
+        throw(ArgumentError("results must have identical n_runs."))
+    left.segment_starts == right.segment_starts ||
+        throw(ArgumentError("results must have identical segment_starts."))
+    length(left.signatures) == length(right.signatures) ||
+        throw(ArgumentError("results must have the same number of signature groups."))
+
+    for i in eachindex(left.signatures)
+        length(left.signatures[i]) == length(right.signatures[i]) ||
+            throw(ArgumentError("signature groups must have matching lengths at index $i."))
+    end
+end
+
+function compare_experiment_results(left::RandomSubsegmentResult, right::RandomSubsegmentResult;
+    r=nothing,
+    atol=1e-8,
+    rtol=1e-8)
+
+    _validate_comparable_results(left, right)
+    comparisons = NamedTuple[]
+
+    for (i, len) in enumerate(left.segment_lengths)
+        for j in 1:left.n_runs
+            agreement = compare_signatures(
+                left.signatures[i][j],
+                right.signatures[i][j];
+                r,
+                atol,
+                rtol,
+            )
+            push!(
+                comparisons,
+                (
+                    segment_length_index = i,
+                    segment_length = len,
+                    run_index = j,
+                    start_index = left.segment_starts[i][j],
+                    agreement = agreement,
+                ),
+            )
+        end
+    end
+
+    return ExperimentAgreement(left.segment_lengths, left.n_runs, left.segment_starts, comparisons)
+end
+
+function compare_experiment_results(left::TimedRandomSubsegmentResult, right::TimedRandomSubsegmentResult; kwargs...)
+    return compare_experiment_results(left.result, right.result; kwargs...)
+end
+
+function _summary_stat(f, xs)
+    return isempty(xs) ? NaN : f(xs)
+end
+
+function summarize_timings(timed::TimedRandomSubsegmentResult)
+    seconds = elapsed_seconds(timed)
+
+    return map(eachindex(timed.result.segment_lengths)) do i
+        cur = seconds[i]
+        (
+            backend = timed.backend,
+            segment_length = timed.result.segment_lengths[i],
+            n_runs = length(cur),
+            total_time_seconds = sum(cur; init = 0.0),
+            mean_time_seconds = _summary_stat(mean, cur),
+            median_time_seconds = _summary_stat(median, cur),
+            std_time_seconds = length(cur) <= 1 ? 0.0 : std(cur),
+            min_time_seconds = isempty(cur) ? NaN : minimum(cur),
+            max_time_seconds = isempty(cur) ? NaN : maximum(cur),
+            nthreads = timed.nthreads,
+        )
+    end
+end
+
+function summarize_agreement(comparison::ExperimentAgreement)
+    return map(eachindex(comparison.segment_lengths)) do i
+        rows = filter(row -> row.segment_length_index == i, comparison.comparisons)
+        discrepancies = map(row -> row.agreement.max_birth_discrepancy, rows)
+        finite_discrepancies = filter(isfinite, discrepancies)
+        max_birth_discrepancy = if isempty(discrepancies)
+            NaN
+        elseif isempty(finite_discrepancies)
+            Inf
+        else
+            maximum(finite_discrepancies)
+        end
+
+        (
+            segment_length = comparison.segment_lengths[i],
+            n_runs = length(rows),
+            rank_mismatches = count(row -> !row.agreement.dimension_match, rows),
+            birth_vector_mismatches = count(row -> !row.agreement.birth_vector_match, rows),
+            cycling_space_mismatches = count(row -> !row.agreement.cycling_space_match, rows),
+            max_birth_discrepancy = max_birth_discrepancy,
+        )
+    end
 end
 
 

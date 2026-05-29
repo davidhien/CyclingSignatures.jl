@@ -15,15 +15,12 @@ _coefficient_field(field::Type) = field
 function CyclingSignatures.trajectory_barcode(::Val{:Ripserer}, points, metric, flt_threshold, field)
     d_mat = ripserer_distance_matrix(points, metric)
     filtration = Ripserer.Rips(d_mat; threshold=flt_threshold)
-    diagram = Ripserer.ripserer(
-        filtration;
-        dim_max=1,
-        alg=:involuted,
-        reps=true,
-        field=_ripserer_field(field),
-    )[2]
+    diagram = Ripserer.ripserer(filtration; dim_max=1, alg=:involuted, reps=true, field=_ripserer_field(field))[2]
 
-    return ripserer_diagram_to_trajectory_bars(diagram, _coefficient_field(field))
+    filtered_diagram = filter(bar -> bar.birth <= flt_threshold, diagram)
+    filtered_diagram = filter(bar -> bar.death >= flt_threshold, filtered_diagram)
+
+    return ripserer_diagram_to_trajectory_bars(filtered_diagram, _coefficient_field(field))
 end
 
 function ripserer_distance_matrix(points, metric)

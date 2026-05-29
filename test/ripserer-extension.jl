@@ -7,6 +7,16 @@ import CyclingSignatures: colspace_normal_form
 
 include("test-util.jl")
 
+function test_ripserer_barcode_invariants(barcode, field; all_essential=false)
+    if all_essential
+        @test all(bar -> bar.death == Inf, barcode)
+    end
+    @test all(bar -> length(bar.simplex_list) == length(bar.coeff_list), barcode)
+    @test all(bar -> all(simplex -> length(simplex) == 2, bar.simplex_list), barcode)
+    @test all(bar -> eltype(bar.coeff_list) == field, barcode)
+    @test all(bar -> all(!iszero, bar.coeff_list), barcode)
+end
+
 @testset "Ripserer extension" begin
     boxsize = 0.2
     tsn, circle_data = circle_trajectory_space(40, 1; boxsize)
@@ -26,10 +36,52 @@ include("test-util.jl")
         )
 
         @test !isempty(barcode)
-        @test all(bar -> bar.death == Inf, barcode)
-        @test all(bar -> length(bar.simplex_list) == length(bar.coeff_list), barcode)
-        @test all(bar -> all(simplex -> length(simplex) == 2, bar.simplex_list), barcode)
-        @test all(bar -> eltype(bar.coeff_list) == FF{2}, barcode)
+        test_ripserer_barcode_invariants(barcode, FF{2}; all_essential=true)
+
+        barcode_ff5 = CyclingSignatures.trajectory_barcode(
+            Val(:Ripserer),
+            points,
+            euclidean,
+            boxsize,
+            FF{5},
+        )
+
+        @test !isempty(barcode_ff5)
+        test_ripserer_barcode_invariants(barcode_ff5, FF{5}; all_essential=true)
+    end
+
+    @testset "barcode dispatch on double circle" begin
+        figure8_space, figure8_data = figure8_trajectory_space(40, [0, 1]; boxsize)
+        points = CyclingSignatures.evaluate_interval(
+            get_trajectory(figure8_space),
+            1,
+            size(figure8_data, 2),
+        )
+
+        barcode = CyclingSignatures.trajectory_barcode(
+            Val(:Ripserer),
+            points,
+            euclidean,
+            boxsize,
+            FF{2},
+        )
+
+        @test length(barcode) >= 2
+        test_ripserer_barcode_invariants(barcode, FF{2})
+        @test all(bar -> 0 <= bar.birth <= boxsize, barcode)
+        @test any(bar -> bar.death == Inf, barcode)
+
+        ripserer_ext = Base.get_extension(CyclingSignatures, :RipsererExt)
+        @test ripserer_ext !== nothing
+
+        d_mat = ripserer_ext.ripserer_distance_matrix(points, euclidean)
+        off_diagonal_zeros = [
+            d_mat[i, j]
+            for j in axes(d_mat, 2)
+            for i in axes(d_mat, 1)
+            if i != j && iszero(d_mat[i, j])
+        ]
+        @test isempty(off_diagonal_zeros)
     end
 
     @testset "backend invariants" begin
@@ -57,6 +109,31 @@ include("test-util.jl")
         @test dimension(ripserer_sig) == dimension(dm_sig)
         @test colspace_normal_form(cycling_matrix(ripserer_sig)) ==
               colspace_normal_form(cycling_matrix(dm_sig))
+    end
+
+    @testset "experiment agreement diagnostics" begin
+        exp = RandomSubsegmentExperiment(tsn, [size(circle_data, 2)], 1, 1234)
+        starts = sample_segment_starts(exp)
+
+        dm = run_experiment(
+            exp;
+            alg = Val(:DistanceMatrix),
+            threshold = boxsize,
+            segment_starts = starts,
+            progress = false,
+        )
+        ripserer = run_experiment(
+            exp;
+            alg = Val(:Ripserer),
+            threshold = boxsize,
+            segment_starts = starts,
+            progress = false,
+        )
+
+        comparison = compare_experiment_results(dm, ripserer)
+        summary = only(summarize_agreement(comparison))
+        @test summary.rank_mismatches == 0
+        @test summary.cycling_space_mismatches == 0
     end
 
     @testset "coefficient fields" begin
