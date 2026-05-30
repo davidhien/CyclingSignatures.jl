@@ -193,6 +193,140 @@ function _concat_segments(segments)
 end
 
 """
+    get_interpolation_function(Y)
+
+Build cubic-spline interpolation functions for a column-oriented trajectory
+matrix `Y`. Returns `(c, dc)`, where `c(t)` evaluates the interpolated point and
+`dc(t)` evaluates its derivative.
+"""
+function get_interpolation_function(Y)
+    t_grid = collect(1:size(Y, 2))
+    curves = map(eachrow(Y)) do row
+        return CubicSpline(collect(row), t_grid)
+    end
+    return t -> map(curve -> curve(t), curves),
+           t -> map(curve -> DataInterpolations.derivative(curve, t), curves)
+end
+
+"""
+    interpolate_to_distance(Y, r, metric=euclidean; kwargs...)
+
+Refine a column-oriented trajectory matrix `Y` using cubic-spline interpolation
+so consecutive interpolated points are within distance `r`. Returns the refined
+trajectory, the interpolated derivative samples, and `t_vec` indexing refined
+points by original sample step.
+"""
+function interpolate_to_distance(
+    Y,
+    r,
+    metric=euclidean;
+    norm_sb=norm,
+    sb_r=nothing,
+    verbose=false,
+    max_depth=50000,
+)
+    c, dc = get_interpolation_function(Y)
+    point_type = eltype(c(1))
+    derivative_type = eltype(dc(1))
+    segments = Vector{Matrix{point_type}}(undef, size(Y, 2))
+    derivative_segments = Vector{Matrix{derivative_type}}(undef, size(Y, 2))
+
+    for i in 1:(size(Y, 2)-1)
+        segments[i], derivative_segments[i] = interpolate_to_distance(
+            c,
+            dc,
+            i,
+            i + 1,
+            r,
+            metric;
+            norm_sb=norm_sb,
+            sb_r=sb_r,
+            verbose=verbose,
+            max_depth=max_depth,
+        )
+    end
+
+    segments[end] = convert(Matrix{point_type}, reshape(_to_vector(Y[:, end]), :, 1))
+    derivative_segments[end] = convert(
+        Matrix{derivative_type},
+        reshape(_to_vector(dc(size(Y, 2))), :, 1),
+    )
+    Y_new, t_vec = _concat_segments(segments)
+    derivatives_new = reduce(hcat, derivative_segments)
+    return Y_new, derivatives_new, t_vec
+end
+
+function interpolate_to_distance(
+    c,
+    dc,
+    a,
+    b,
+    r,
+    metric=euclidean;
+    norm_sb=norm,
+    sb_r=nothing,
+    verbose=false,
+    max_depth=50000,
+)
+    function space_consistent(x, y)
+        return metric(x, y) <= r
+    end
+
+    function direction_consistent(x, y)
+        if isnothing(sb_r)
+            return true
+        end
+        ux, okx = _safe_unit(x, norm_sb)
+        uy, oky = _safe_unit(y, norm_sb)
+        return okx && oky && norm_sb(ux - uy) <= sb_r
+    end
+
+    t_values = [float(a)]
+    target = c(b)
+    target_derivative = dc(b)
+    counter = 1
+
+    while !(
+        space_consistent(c(t_values[end]), target) &&
+        direction_consistent(dc(t_values[end]), target_derivative)
+    ) && (counter += 1) < max_depth
+        push!(t_values, float(b))
+        depth = 2
+        while !(
+            space_consistent(c(t_values[end-1]), c(t_values[end])) &&
+            direction_consistent(dc(t_values[end-1]), dc(t_values[end]))
+        )
+            t_values[end] = t_values[end-1] + (b - t_values[end-1]) / depth
+            depth *= 2
+            if depth > max_depth
+                @warn "Went over max depth"
+                break
+            end
+            verbose && print(depth)
+        end
+    end
+
+    if counter >= max_depth
+        @warn "Counter exhausted!"
+    end
+    verbose && println()
+
+    points = reduce(hcat, (_to_vector(c(t)) for t in t_values))
+    derivatives = reduce(hcat, (_to_vector(dc(t)) for t in t_values))
+    return points, derivatives
+end
+
+getInterpolationFunction(Y) = get_interpolation_function(Y)
+
+function interpolateToDistance(Y, r, metric=euclidean; kwargs...)
+    return interpolate_to_distance(Y, r, metric; kwargs...)
+end
+
+function interpolateToDistance(c, dc, a, b, r, metric=euclidean; kwargs...)
+    return interpolate_to_distance(c, dc, a, b, r, metric; kwargs...)
+end
+
+"""
     resample_to_distance(ds, dt, Y, r; metric=euclidean, kwargs...)
 
 Refines the time series `Y` so consecutive points are close according to a

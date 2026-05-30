@@ -62,7 +62,6 @@ include("trajectory.jl")
 include("cycling-signature.jl")
 include("sample-tools.jl")
 include("distance-matrix-persistence.jl")
-include("CyclingSignatures/interpolate-to-distance.jl")
 include("subsegment-experiments.jl")
 
 include("plotting-interface.jl")

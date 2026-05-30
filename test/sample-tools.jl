@@ -198,3 +198,31 @@ end
         check_refinement(sol, dadras_v, p)
     end
 end
+
+@testset "spline interpolation based refinement" begin
+    function max_consecutive_distance(X, dist)
+        return maximum(dist(X[:, i], X[:, i + 1]) for i in 1:(size(X, 2) - 1))
+    end
+
+    t = range(0, 2π; length=9)
+    Y = reduce(hcat, ([cos(τ), sin(τ)] for τ in t))
+    r = 0.25
+
+    Y_refined, derivatives, t_vec = CyclingSignatures.interpolate_to_distance(Y, r, euclidean)
+
+    @test size(Y_refined, 1) == size(Y, 1)
+    @test size(derivatives) == size(Y_refined)
+    @test t_vec[1] == 1
+    @test t_vec[end] == size(Y_refined, 2) + 1
+    @test max_consecutive_distance(Y_refined, euclidean) ≤ r + 1e-10
+
+    c, dc = CyclingSignatures.getInterpolationFunction(Y)
+    @test c(1) ≈ CyclingSignatures.get_interpolation_function(Y)[1](1)
+    @test dc(1) ≈ CyclingSignatures.get_interpolation_function(Y)[2](1)
+
+    Y_compat, derivatives_compat, t_vec_compat =
+        CyclingSignatures.interpolateToDistance(Y, r, euclidean)
+    @test Y_compat ≈ Y_refined
+    @test derivatives_compat ≈ derivatives
+    @test t_vec_compat == t_vec
+end
