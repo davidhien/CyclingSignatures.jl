@@ -100,7 +100,9 @@ Computes the cycling signature of the segment specified by `range` inside of `tr
 Optionally, a field and an algorithm can be specified.
 
 # Arguments
-- `alg`: barcode backend. `Val(:DistanceMatrix)` is the default; `Val(:Ripserer)` is available when Ripserer is loaded.
+- `alg`: barcode backend. `Val(:DistanceMatrix)` is the default. `Val(:Ripserer)`,
+  `Val(:RipsererNoThreshold)`, and `Val(:RipsererManualReconstruct)` are available when
+  Ripserer is loaded.
 - `trajectory_space`: the trajectory space
 - `range`: currently, this evaluates the cycling signature on the interval `[first(range):last(range)]`
 - `r_max`: if unspecified, the default in `trajectory_space` is used

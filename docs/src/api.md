@@ -80,6 +80,16 @@ rp = run_experiment(exp; alg=Val(:Ripserer), segment_starts=starts, progress=fal
 comparison = compare_experiment_results(dm, rp)
 ```
 
+When Ripserer is loaded, the package exposes three Ripserer-backed algorithms:
+`Val(:Ripserer)` uses a thresholded filtration with Ripserer's involuted representatives,
+`Val(:RipsererNoThreshold)` uses the same representative path without passing a filtration
+threshold to Ripserer, and `Val(:RipsererManualReconstruct)` uses a thresholded filtration plus
+`Ripserer.reconstruct_cycle`.
+
+!!! warning
+    Ripserer currently has a bug which makes `Val(:Ripserer)` return incorrect representatives.
+    Consider using `Val(:RipsererNoThreshold)` or `Val(:RipsererManualReconstruct)` instead.
+
 `run_timed_experiment` records one `time_ns()` measurement per `cycling_signature` call and
 returns a `TimedRandomSubsegmentResult`. Use `run_paired_timed_experiments` to sample starts once
 and run multiple backends on those identical subsegments. The package returns plain Julia results;

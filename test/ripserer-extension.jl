@@ -17,6 +17,51 @@ function test_ripserer_barcode_invariants(barcode, field; all_essential=false)
     @test all(bar -> all(!iszero, bar.coeff_list), barcode)
 end
 
+function double_circle_signatures(alg, figure8_space, subdivision, boxsize)
+    left_sig = cycling_signature(
+        alg,
+        figure8_space,
+        1:(subdivision + 1),
+        boxsize,
+    )
+    right_sig = cycling_signature(
+        alg,
+        figure8_space,
+        (subdivision + 1):(2 * subdivision + 1),
+        boxsize,
+    )
+    both_sig = cycling_signature(
+        alg,
+        figure8_space,
+        1:(2 * subdivision + 1),
+        boxsize,
+    )
+
+    return left_sig, right_sig, both_sig
+end
+
+function test_double_circle_signatures(alg, figure8_space, subdivision, boxsize)
+    left_sig, right_sig, both_sig = double_circle_signatures(
+        alg,
+        figure8_space,
+        subdivision,
+        boxsize,
+    )
+
+    @test dimension(left_sig) == 1
+    @test dimension(right_sig) == 1
+    @test dimension(both_sig) == 2
+
+    left_space = colspace_normal_form(cycling_matrix(left_sig))
+    right_space = colspace_normal_form(cycling_matrix(right_sig))
+    both_space = colspace_normal_form(cycling_matrix(both_sig))
+
+    @test left_space != right_space
+    @test size(left_space, 2) == 1
+    @test size(right_space, 2) == 1
+    @test size(both_space, 2) == 2
+end
+
 @testset "Ripserer extension" begin
     boxsize = 0.2
     tsn, circle_data = circle_trajectory_space(40, 1; boxsize)
@@ -27,27 +72,31 @@ end
             1,
             size(circle_data, 2),
         )
-        barcode = CyclingSignatures.trajectory_barcode(
-            Val(:Ripserer),
-            points,
-            euclidean,
-            boxsize,
-            FF{2},
-        )
+        for alg in (Val(:Ripserer), Val(:RipsererNoThreshold), Val(:RipsererManualReconstruct))
+            @testset "$(alg)" begin
+                barcode = CyclingSignatures.trajectory_barcode(
+                    alg,
+                    points,
+                    euclidean,
+                    boxsize,
+                    FF{2},
+                )
 
-        @test !isempty(barcode)
-        test_ripserer_barcode_invariants(barcode, FF{2}; all_essential=true)
+                @test !isempty(barcode)
+                test_ripserer_barcode_invariants(barcode, FF{2}; all_essential=true)
 
-        barcode_ff5 = CyclingSignatures.trajectory_barcode(
-            Val(:Ripserer),
-            points,
-            euclidean,
-            boxsize,
-            FF{5},
-        )
+                barcode_ff5 = CyclingSignatures.trajectory_barcode(
+                    alg,
+                    points,
+                    euclidean,
+                    boxsize,
+                    FF{5},
+                )
 
-        @test !isempty(barcode_ff5)
-        test_ripserer_barcode_invariants(barcode_ff5, FF{5}; all_essential=true)
+                @test !isempty(barcode_ff5)
+                test_ripserer_barcode_invariants(barcode_ff5, FF{5}; all_essential=true)
+            end
+        end
     end
 
     @testset "barcode dispatch on double circle" begin
@@ -58,18 +107,22 @@ end
             size(figure8_data, 2),
         )
 
-        barcode = CyclingSignatures.trajectory_barcode(
-            Val(:Ripserer),
-            points,
-            euclidean,
-            boxsize,
-            FF{2},
-        )
+        for alg in (Val(:Ripserer), Val(:RipsererNoThreshold), Val(:RipsererManualReconstruct))
+            @testset "$(alg)" begin
+                barcode = CyclingSignatures.trajectory_barcode(
+                    alg,
+                    points,
+                    euclidean,
+                    boxsize,
+                    FF{2},
+                )
 
-        @test length(barcode) >= 2
-        test_ripserer_barcode_invariants(barcode, FF{2})
-        @test all(bar -> 0 <= bar.birth <= boxsize, barcode)
-        @test any(bar -> bar.death == Inf, barcode)
+                @test length(barcode) >= 2
+                test_ripserer_barcode_invariants(barcode, FF{2})
+                @test all(bar -> 0 <= bar.birth <= boxsize, barcode)
+                @test any(bar -> bar.death == Inf, barcode)
+            end
+        end
 
         ripserer_ext = Base.get_extension(CyclingSignatures, :RipsererExt)
         @test ripserer_ext !== nothing
@@ -88,41 +141,41 @@ end
         subdivision = 40
         figure8_space, _ = figure8_trajectory_space(subdivision, [0, 1]; boxsize)
 
-        left_sig = cycling_signature(
-            Val(:Ripserer),
-            figure8_space,
-            1:(subdivision + 1),
-            boxsize,
-        )
-        right_sig = cycling_signature(
-            Val(:Ripserer),
-            figure8_space,
-            (subdivision + 1):(2 * subdivision + 1),
-            boxsize,
-        )
-        both_sig = cycling_signature(
-            Val(:Ripserer),
-            figure8_space,
-            1:(2 * subdivision + 1),
-            boxsize,
-        )
+        @testset "manual reconstruction" begin
+            test_double_circle_signatures(
+                Val(:RipsererManualReconstruct),
+                figure8_space,
+                subdivision,
+                boxsize,
+            )
+        end
 
-        @test dimension(left_sig) == 1
-        @test dimension(right_sig) == 1
-        @test dimension(both_sig) == 2
+        @testset "no threshold" begin
+            test_double_circle_signatures(
+                Val(:RipsererNoThreshold),
+                figure8_space,
+                subdivision,
+                boxsize,
+            )
+        end
 
-        left_space = colspace_normal_form(cycling_matrix(left_sig))
-        right_space = colspace_normal_form(cycling_matrix(right_sig))
-        both_space = colspace_normal_form(cycling_matrix(both_sig))
-
-        @test left_space != right_space
-        @test size(left_space, 2) == 1
-        @test size(right_space, 2) == 1
-        @test size(both_space, 2) == 2
+        @testset "thresholded involuted representatives" begin
+            test_double_circle_signatures(
+                Val(:Ripserer),
+                figure8_space,
+                subdivision,
+                boxsize,
+            )
+        end
     end
 
     @testset "backend invariants" begin
-        for alg in (Val(:DistanceMatrix), Val(:Ripserer))
+        for alg in (
+            Val(:DistanceMatrix),
+            Val(:Ripserer),
+            Val(:RipsererNoThreshold),
+            Val(:RipsererManualReconstruct),
+        )
             @testset "$(alg)" begin
                 sig = cycling_signature(alg, tsn, (1, size(circle_data, 2)), boxsize)
 
@@ -141,11 +194,15 @@ end
 
     @testset "same cycling space as distance matrix" begin
         dm_sig = cycling_signature(Val(:DistanceMatrix), tsn, (1, size(circle_data, 2)), boxsize)
-        ripserer_sig = cycling_signature(Val(:Ripserer), tsn, (1, size(circle_data, 2)), boxsize)
+        for alg in (Val(:Ripserer), Val(:RipsererNoThreshold), Val(:RipsererManualReconstruct))
+            @testset "$(alg)" begin
+                ripserer_sig = cycling_signature(alg, tsn, (1, size(circle_data, 2)), boxsize)
 
-        @test dimension(ripserer_sig) == dimension(dm_sig)
-        @test colspace_normal_form(cycling_matrix(ripserer_sig)) ==
-              colspace_normal_form(cycling_matrix(dm_sig))
+                @test dimension(ripserer_sig) == dimension(dm_sig)
+                @test colspace_normal_form(cycling_matrix(ripserer_sig)) ==
+                      colspace_normal_form(cycling_matrix(dm_sig))
+            end
+        end
     end
 
     @testset "experiment agreement diagnostics" begin
@@ -174,18 +231,22 @@ end
     end
 
     @testset "coefficient fields" begin
-        for field in (FF{3}, FF{5})
-            sig = cycling_signature(
-                Val(:Ripserer),
-                tsn,
-                (1, size(circle_data, 2)),
-                boxsize;
-                field,
-            )
+        for alg in (Val(:Ripserer), Val(:RipsererNoThreshold), Val(:RipsererManualReconstruct))
+            @testset "$(alg)" begin
+                for field in (FF{3}, FF{5})
+                    sig = cycling_signature(
+                        alg,
+                        tsn,
+                        (1, size(circle_data, 2)),
+                        boxsize;
+                        field,
+                    )
 
-            @test dimension(sig) == 1
-            @test eltype(cycling_matrix(sig)) == field
-            @test !all(iszero, cycling_matrix(sig))
+                    @test dimension(sig) == 1
+                    @test eltype(cycling_matrix(sig)) == field
+                    @test !all(iszero, cycling_matrix(sig))
+                end
+            end
         end
     end
 end
