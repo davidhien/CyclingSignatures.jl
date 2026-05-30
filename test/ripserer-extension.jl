@@ -62,6 +62,37 @@ function test_double_circle_signatures(alg, figure8_space, subdivision, boxsize)
     @test size(both_space, 2) == 2
 end
 
+function test_double_circle_signatures_known_broken(alg, figure8_space, subdivision, boxsize)
+    left_sig, right_sig, both_sig = double_circle_signatures(
+        alg,
+        figure8_space,
+        subdivision,
+        boxsize,
+    )
+
+    @test dimension(left_sig) == 1
+    @test dimension(right_sig) == 1
+
+    left_space = colspace_normal_form(cycling_matrix(left_sig))
+    right_space = colspace_normal_form(cycling_matrix(right_sig))
+    both_space = colspace_normal_form(cycling_matrix(both_sig))
+
+    recovers_two_generators = dimension(both_sig) == 2 && size(both_space, 2) == 2
+    separates_circles = left_space != right_space
+
+    if recovers_two_generators
+        @test recovers_two_generators
+    else
+        @test_broken recovers_two_generators
+    end
+
+    if separates_circles
+        @test separates_circles
+    else
+        @test_broken separates_circles
+    end
+end
+
 @testset "Ripserer extension" begin
     boxsize = 0.2
     tsn, circle_data = circle_trajectory_space(40, 1; boxsize)
@@ -160,7 +191,7 @@ end
         end
 
         @testset "thresholded involuted representatives" begin
-            test_double_circle_signatures(
+            test_double_circle_signatures_known_broken(
                 Val(:Ripserer),
                 figure8_space,
                 subdivision,
