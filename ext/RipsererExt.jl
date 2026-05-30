@@ -14,19 +14,18 @@ _coefficient_field(field::Type) = field
 
 function CyclingSignatures.trajectory_barcode(::Val{:Ripserer}, points, metric, flt_threshold, field)
     d_mat = ripserer_distance_matrix(points, metric)
-    filtration = Ripserer.Rips(d_mat)
-    diagram = Ripserer.ripserer(
-        filtration;
-        dim_max=1,
-        alg=:involuted,
-        reps=true,
-        field=_ripserer_field(field),
-    )[2]
+    filtration = Ripserer.Rips(d_mat; threshold=flt_threshold)
+    diagram = Ripserer.ripserer(filtration; dim_max=1, reps=true, field=_ripserer_field(field))[2]
 
     filtered_diagram = filter(bar -> bar.birth <= flt_threshold, diagram)
     filtered_diagram = filter(bar -> bar.death >= flt_threshold, filtered_diagram)
 
-    return ripserer_diagram_to_trajectory_bars(filtered_diagram, _coefficient_field(field))
+    return ripserer_diagram_to_trajectory_bars(
+        filtered_diagram,
+        filtration,
+        flt_threshold,
+        _coefficient_field(field),
+    )
 end
 
 function ripserer_distance_matrix(points, metric)
@@ -41,19 +40,26 @@ function ripserer_distance_matrix(points, metric)
     return d_mat
 end
 
-function ripserer_diagram_to_trajectory_bars(diagram, field)
+function ripserer_diagram_to_trajectory_bars(diagram, filtration, flt_threshold, field)
     return map(diagram) do interval
-        simplex_list, coeff_list = ripserer_representative_to_edge_data(
-            Ripserer.representative(interval),
-            field,
-        )
+        cycle = Ripserer.reconstruct_cycle(filtration, interval, flt_threshold)
+        simplex_list, coeff_list = ripserer_reconstructed_cycle_to_edge_data(cycle, field)
         return CyclingSignatures.TrajectoryBar(
             Ripserer.birth(interval),
-            Inf,
+            Ripserer.death(interval),
             simplex_list,
             coeff_list,
         )
     end
+end
+
+function ripserer_reconstructed_cycle_to_edge_data(cycle, field)
+    simplex_list = [Tuple(collect(Ripserer.vertices(simplex))) for simplex in cycle]
+    coeff_list = fill(one(field), length(simplex_list))
+    if !isempty(coeff_list)
+        coeff_list[1] = -one(field)
+    end
+    return simplex_list, coeff_list
 end
 
 function ripserer_representative_to_edge_data(representative, field)

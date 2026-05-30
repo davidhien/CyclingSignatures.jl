@@ -7,9 +7,9 @@ import CyclingSignatures: colspace_normal_form
 
 include("test-util.jl")
 
-function test_ripserer_barcode_invariants(barcode, field; active_at=nothing)
-    if active_at !== nothing
-        @test all(bar -> bar.birth <= active_at <= bar.death, barcode)
+function test_ripserer_barcode_invariants(barcode, field; all_essential=false)
+    if all_essential
+        @test all(bar -> bar.death == Inf, barcode)
     end
     @test all(bar -> length(bar.simplex_list) == length(bar.coeff_list), barcode)
     @test all(bar -> all(simplex -> length(simplex) == 2, bar.simplex_list), barcode)
@@ -36,7 +36,7 @@ end
         )
 
         @test !isempty(barcode)
-        test_ripserer_barcode_invariants(barcode, FF{2}; active_at=boxsize)
+        test_ripserer_barcode_invariants(barcode, FF{2}; all_essential=true)
 
         barcode_ff5 = CyclingSignatures.trajectory_barcode(
             Val(:Ripserer),
@@ -47,7 +47,7 @@ end
         )
 
         @test !isempty(barcode_ff5)
-        test_ripserer_barcode_invariants(barcode_ff5, FF{5}; active_at=boxsize)
+        test_ripserer_barcode_invariants(barcode_ff5, FF{5}; all_essential=true)
     end
 
     @testset "barcode dispatch on double circle" begin
@@ -67,8 +67,9 @@ end
         )
 
         @test length(barcode) >= 2
-        test_ripserer_barcode_invariants(barcode, FF{2}; active_at=boxsize)
+        test_ripserer_barcode_invariants(barcode, FF{2})
         @test all(bar -> 0 <= bar.birth <= boxsize, barcode)
+        @test any(bar -> bar.death == Inf, barcode)
 
         ripserer_ext = Base.get_extension(CyclingSignatures, :RipsererExt)
         @test ripserer_ext !== nothing
