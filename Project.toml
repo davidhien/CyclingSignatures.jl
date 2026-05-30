@@ -33,6 +33,22 @@ MakiePltExt = ["Makie"]
 RipsererExt = ["Ripserer"]
 
 [compat]
+DataInterpolations = "8"
+DataStructures = "0.19"
+Distances = "0.10"
+Graphs = "1"
+IterativeSolvers = "0.9"
+LaTeXStrings = "1"
+Makie = "0.24"
+MetaGraphs = "0.9"
+OrdinaryDiffEqTsit5 = "2"
+ProgressBars = "1"
+Plots = "1"
+Ripserer = "0.16"
+SafeTestsets = "0.1"
+SimpleWeightedGraphs = "1"
+StaticArrays = "1"
+StatsBase = "0.34"
 StatsPlots = "0.15.8"
 StepFunctions = "1.0.0"
 julia = "1.9"
