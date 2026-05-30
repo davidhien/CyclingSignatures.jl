@@ -84,6 +84,43 @@ end
         @test isempty(off_diagonal_zeros)
     end
 
+    @testset "cycling signatures on double circle" begin
+        subdivision = 40
+        figure8_space, _ = figure8_trajectory_space(subdivision, [0, 1]; boxsize)
+
+        left_sig = cycling_signature(
+            Val(:Ripserer),
+            figure8_space,
+            1:(subdivision + 1),
+            boxsize,
+        )
+        right_sig = cycling_signature(
+            Val(:Ripserer),
+            figure8_space,
+            (subdivision + 1):(2 * subdivision + 1),
+            boxsize,
+        )
+        both_sig = cycling_signature(
+            Val(:Ripserer),
+            figure8_space,
+            1:(2 * subdivision + 1),
+            boxsize,
+        )
+
+        @test dimension(left_sig) == 1
+        @test dimension(right_sig) == 1
+        @test dimension(both_sig) == 2
+
+        left_space = colspace_normal_form(cycling_matrix(left_sig))
+        right_space = colspace_normal_form(cycling_matrix(right_sig))
+        both_space = colspace_normal_form(cycling_matrix(both_sig))
+
+        @test left_space != right_space
+        @test size(left_space, 2) == 1
+        @test size(right_space, 2) == 1
+        @test size(both_space, 2) == 2
+    end
+
     @testset "backend invariants" begin
         for alg in (Val(:DistanceMatrix), Val(:Ripserer))
             @testset "$(alg)" begin
