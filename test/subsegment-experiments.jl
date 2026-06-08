@@ -8,6 +8,13 @@ using CyclingSignatures: sample_segment_starts
 
 include("test-util.jl")
 
+const WARMUP_PROBE_RANGES = UnitRange{Int}[]
+
+function CyclingSignatures.cycling_signature(::Val{:WarmupProbe}, trajectory_space::TrajectorySpace, range, r_max=nothing; field=FF{2})
+    push!(WARMUP_PROBE_RANGES, first(range):last(range))
+    return CyclingSignature(zeros(field, 0, 0), Float64[])
+end
+
 function synthetic_cycspace_distribution_result()
     F = FF{2}
     e1 = reshape(F.([1, 0]), 2, 1)
@@ -91,6 +98,37 @@ end
         )
         @test paired[:DistanceMatrix].result.segment_starts ==
               paired[:DistanceMatrixOld].result.segment_starts
+    end
+
+    @testset "timed experiment warmup modes" begin
+        circle_data = mapslices(v -> normalize(v, Inf), circle_time_series(20, 1), dims=2)
+        traj_space = trajectory_space_from_trajectory(circle_data, 0.5)
+        segment_lengths = [3, 5, 7]
+        exp = RandomSubsegmentExperiment(traj_space, segment_lengths, 2, 1234)
+        starts = [[1, 2], [3, 4], [5, 6]]
+
+        empty!(WARMUP_PROBE_RANGES)
+        run_timed_experiment(
+            exp;
+            alg = Val(:WarmupProbe),
+            segment_starts = starts,
+            progress = false,
+            warmup = :all_lengths,
+        )
+        expected_warmups = [1:3, 3:7, 5:11]
+        @test WARMUP_PROBE_RANGES[1:length(segment_lengths)] == expected_warmups
+        @test length(WARMUP_PROBE_RANGES) == length(segment_lengths) + length(segment_lengths) * exp.n_runs
+
+        empty!(WARMUP_PROBE_RANGES)
+        run_timed_experiment(
+            exp;
+            alg = Val(:WarmupProbe),
+            segment_starts = starts,
+            progress = false,
+            warmup = :none,
+        )
+        expected_timed = [1:3, 2:4, 3:7, 4:8, 5:11, 6:12]
+        @test WARMUP_PROBE_RANGES == expected_timed
     end
 
     @testset "signature agreement" begin
