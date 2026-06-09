@@ -182,14 +182,37 @@ function _backend_symbol(alg)
     return Symbol(string(alg))
 end
 
-function _warmup_signature(alg, traj_space, segment_lengths, segment_starts, threshold, field)
-    isempty(segment_lengths) && return nothing
-    isempty(segment_starts[1]) && return nothing
-
-    len = segment_lengths[1]
-    start = segment_starts[1][1]
+function _warmup_signature(alg, traj_space, len, start, threshold, field)
     cur_range = start:(start + len - 1)
     return cycling_signature(alg, traj_space, cur_range, threshold; field)
+end
+
+function _warmup_signatures(alg, traj_space, segment_lengths, segment_starts, threshold, field, warmup)
+    warmup isa Symbol ||
+        throw(ArgumentError("warmup must be one of :none, :first, :all_lengths, or :all. Got $warmup."))
+    warmup == :none && return nothing
+    isempty(segment_lengths) && return nothing
+
+    if warmup == :first
+        isempty(segment_starts[1]) && return nothing
+        return _warmup_signature(alg, traj_space, segment_lengths[1], segment_starts[1][1], threshold, field)
+    elseif warmup == :all_lengths
+        for i in eachindex(segment_lengths)
+            isempty(segment_starts[i]) && continue
+            _warmup_signature(alg, traj_space, segment_lengths[i], segment_starts[i][1], threshold, field)
+        end
+        return nothing
+    elseif warmup == :all
+        for i in eachindex(segment_lengths)
+            len = segment_lengths[i]
+            for start in segment_starts[i]
+                _warmup_signature(alg, traj_space, len, start, threshold, field)
+            end
+        end
+        return nothing
+    end
+
+    throw(ArgumentError("warmup must be one of :none, :first, :all_lengths, or :all. Got $warmup."))
 end
 
 function run_timed_experiment(exp::RandomSubsegmentExperiment;
@@ -200,7 +223,7 @@ function run_timed_experiment(exp::RandomSubsegmentExperiment;
     resample_segment_start=true,
     progress=true,
     parallel_inner=false,
-    warmup=true)
+    warmup=:all_lengths)
 
     traj_space = get_trajectory_space(exp)
     seg_lengths = get_segment_lengths(exp)
@@ -213,9 +236,7 @@ function run_timed_experiment(exp::RandomSubsegmentExperiment;
         segment_starts = _validate_segment_starts(traj_space, seg_lengths, n_runs, segment_starts)
     end
 
-    if warmup
-        _warmup_signature(alg, traj_space, seg_lengths, segment_starts, resolved_threshold, field)
-    end
+    _warmup_signatures(alg, traj_space, seg_lengths, segment_starts, resolved_threshold, field, warmup)
 
     signatures = [Vector{CyclingSignature}(undef, n_runs) for _ in seg_lengths]
     elapsed_ns = [Vector{UInt64}(undef, n_runs) for _ in seg_lengths]
@@ -258,7 +279,7 @@ function run_paired_timed_experiments(exp::RandomSubsegmentExperiment, backends;
     resample_segment_start=true,
     progress=true,
     parallel_inner=false,
-    warmup=true)
+    warmup=:all_lengths)
 
     starts = sample_segment_starts(exp; resample_segment_start)
     results = Dict{Symbol,TimedRandomSubsegmentResult}()

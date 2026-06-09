@@ -347,7 +347,7 @@ end
 function subspace_inclusion_points(ms...)
     max_size = maximum(ms)
     return map(ms) do m
-        xs = collect(1:m)
+        xs = Float64.(1:m)
         if m < max_size
             xs .+= (max_size - m) / 2
         end
