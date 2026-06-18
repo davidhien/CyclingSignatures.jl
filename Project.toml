@@ -28,8 +28,8 @@ Ripserer = "aa79e827-bd0b-42a8-9f10-2b302677a641"
 StatsPlots = "f3b207a7-027a-5e70-b257-86293d7955fd"
 
 [extensions]
-PlotsPltExt = ["Plots", "StatsPlots"]
 MakiePltExt = ["Makie"]
+PlotsPltExt = ["Plots", "StatsPlots"]
 RipsererExt = ["Ripserer"]
 
 [compat]
@@ -42,12 +42,13 @@ LaTeXStrings = "1"
 Makie = "0.24"
 MetaGraphs = "0.9"
 OrdinaryDiffEqTsit5 = "2"
-ProgressBars = "1"
 Plots = "1"
+ProgressBars = "1"
 Ripserer = "0.16"
 SafeTestsets = "0.1"
 SimpleWeightedGraphs = "1"
 StaticArrays = "1"
+Statistics = "1"
 StatsBase = "0.34"
 StatsPlots = "0.15.8"
 StepFunctions = "1.0.0"
